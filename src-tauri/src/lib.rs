@@ -75,7 +75,7 @@ pub fn run() {
             .visible(false)
             .inner_size(380.0, 440.0)
             .resizable(false)
-            .shadow(true)
+            .transparent(true)
             .build()?;
 
             // Register Ctrl+K global shortcut
@@ -92,11 +92,21 @@ pub fn run() {
                         // Read clipboard
                         if let Ok(mut cb) = arboard::Clipboard::new() {
                             if let Ok(text) = cb.get_text() {
-                                if text.len() >= 10 {
+                                if !text.is_empty() {
+                                    // 1. Emit content to popup window first
                                     let _ = handle.emit("clipboard:changed", ClipboardChangedPayload {
                                         char_count: text.len(),
                                         content: text,
                                     });
+                                    // 2. Wait a tick for React to process the event
+                                    std::thread::sleep(std::time::Duration::from_millis(50));
+                                    // 3. Show the popup window from Rust (reliable)
+                                    if let Some(window) = handle.get_webview_window("clipboard-popup") {
+                                        use tauri_plugin_positioner::{WindowExt, Position};
+                                        let _ = window.move_window(Position::Center);
+                                        let _ = window.show();
+                                        let _ = window.set_focus();
+                                    }
                                 }
                             }
                         }

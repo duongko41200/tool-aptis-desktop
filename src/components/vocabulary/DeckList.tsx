@@ -51,14 +51,23 @@ export default function DeckList({ selectedDeckId, onSelect }: Props) {
       <div
         onClick={() => onSelect(deck.id)}
         style={{
-          display: 'flex', alignItems: 'center', padding: `8px 12px 8px ${12 + depth * 16}px`,
-          cursor: 'pointer', borderBottom: '1px solid #f1f5f9',
-          background: selectedDeckId === deck.id ? '#ede9fe' : 'transparent',
+          display: 'flex', alignItems: 'center',
+          padding: `8px 12px 8px ${12 + depth * 16}px`,
+          cursor: 'pointer',
+          borderBottom: '1px solid var(--border-dark)',
+          background: selectedDeckId === deck.id ? 'rgba(212,245,106,0.1)' : 'transparent',
           transition: 'background 0.15s',
         }}
+        onMouseEnter={e => { if (selectedDeckId !== deck.id) (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.05)'; }}
+        onMouseLeave={e => { if (selectedDeckId !== deck.id) (e.currentTarget as HTMLDivElement).style.background = 'transparent'; }}
       >
-        <span style={{ fontSize: 12, marginRight: 6 }}>{depth > 0 ? '↳' : '📂'}</span>
-        <span style={{ flex: 1, fontSize: 13, fontWeight: selectedDeckId === deck.id ? 800 : 600, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <span style={{ fontSize: 12, marginRight: 6, opacity: 0.7 }}>{depth > 0 ? '↳' : '📂'}</span>
+        <span style={{
+          flex: 1, fontSize: 13,
+          fontWeight: selectedDeckId === deck.id ? 800 : 600,
+          color: selectedDeckId === deck.id ? 'var(--accent-primary)' : 'var(--text-primary)',
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>
           {deck.name}
         </span>
         <Badge count={deck.new_count} color="#3b82f6" />
@@ -66,7 +75,7 @@ export default function DeckList({ selectedDeckId, onSelect }: Props) {
         <Badge count={deck.review_count} color="#22c55e" />
         <button
           onClick={e => { e.stopPropagation(); setConfirmDelete(deck.id); }}
-          style={{ marginLeft: 6, background: 'none', border: 'none', color: '#cbd5e1', cursor: 'pointer', fontSize: 14, padding: '0 2px' }}
+          style={{ marginLeft: 6, background: 'none', border: 'none', color: 'rgba(255,255,255,0.25)', cursor: 'pointer', fontSize: 14, padding: '0 2px' }}
           title="Delete deck"
         >×</button>
       </div>
@@ -75,64 +84,71 @@ export default function DeckList({ selectedDeckId, onSelect }: Props) {
   );
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#fff', borderRight: '2px solid #0f172a' }}>
-      <div style={{ padding: '12px 14px 10px', borderBottom: '2px solid #0f172a', background: '#0f172a' }}>
-        <div style={{ fontSize: 10, fontWeight: 900, color: '#7c3aed', letterSpacing: 2 }}>DECKS</div>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'rgba(8,6,14,0.6)', backdropFilter: 'blur(16px)', borderRight: '1px solid var(--border-dark)' }}>
+      {/* Header */}
+      <div style={{ padding: '12px 14px 10px', borderBottom: '1px solid var(--border-dark)' }}>
+        <div className="label-upper" style={{ color: 'var(--accent-primary)' }}>DECKS</div>
       </div>
 
+      {/* List */}
       <div style={{ flex: 1, overflowY: 'auto' }}>
         {decksError ? (
-          <div style={{ padding: 12, color: '#dc2626', fontSize: 11, background: '#fef2f2' }}>
+          <div style={{ padding: 12, color: '#f87171', fontSize: 11, background: 'rgba(220,38,38,0.1)', margin: 8, borderRadius: 10 }}>
             ⚠️ DB error: {String(decksError)}<br />
-            <span style={{ opacity: 0.7 }}>Try restarting the app to apply migrations.</span>
+            <span style={{ opacity: 0.7 }}>Try restarting the app.</span>
           </div>
         ) : decks.length === 0 ? (
-          <div style={{ padding: 16, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
+          <div style={{ padding: 16, textAlign: 'center', color: 'var(--text-secondary)', fontSize: 13 }}>
             No decks yet.<br />Create one below.
           </div>
         ) : rootDecks.map(d => <DeckRow key={d.id} deck={d} depth={0} />)}
       </div>
 
+      {/* Delete confirm */}
       {confirmDelete !== null && (
-        <div style={{ padding: 12, background: '#fef2f2', borderTop: '1px solid #fecaca' }}>
-          <p style={{ fontSize: 12, color: '#dc2626', margin: '0 0 8px' }}>Delete deck and all its notes?</p>
+        <div style={{ padding: 12, background: 'rgba(220,38,38,0.12)', borderTop: '1px solid rgba(220,38,38,0.3)' }}>
+          <p style={{ fontSize: 12, color: '#f87171', margin: '0 0 8px' }}>Delete deck and all its notes?</p>
           <div style={{ display: 'flex', gap: 6 }}>
-            <button onClick={async () => { await deleteDeck(confirmDelete); setConfirmDelete(null); }}
-              style={{ flex: 1, background: '#dc2626', color: '#fff', border: 'none', borderRadius: 6, padding: '5px', fontSize: 12, cursor: 'pointer' }}>Delete</button>
-            <button onClick={() => setConfirmDelete(null)}
-              style={{ flex: 1, background: '#f1f5f9', border: 'none', borderRadius: 6, padding: '5px', fontSize: 12, cursor: 'pointer' }}>Cancel</button>
+            <button onClick={async () => { await deleteDeck(confirmDelete); setConfirmDelete(null); }} className="btn-danger" style={{ flex: 1 }}>Delete</button>
+            <button onClick={() => setConfirmDelete(null)} className="btn-muted" style={{ flex: 1 }}>Cancel</button>
           </div>
         </div>
       )}
 
-      <div style={{ padding: 10, borderTop: '2px solid #0f172a' }}>
+      {/* Create form */}
+      <div style={{ padding: 10, borderTop: '1px solid var(--border-dark)' }}>
         {showForm ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <input value={newDeckName} onChange={e => setNewDeckName(e.target.value)}
+            <input
+              value={newDeckName}
+              onChange={e => setNewDeckName(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleCreate()}
               placeholder="Deck name…"
               autoFocus
-              style={{ border: '2px solid #7c3aed', borderRadius: 8, padding: '5px 8px', fontSize: 13, outline: 'none' }} />
-            <select value={parentId ?? ''} onChange={e => setParentId(e.target.value ? Number(e.target.value) : null)}
-              style={{ border: '1.5px solid #e2e8f0', borderRadius: 8, padding: '4px 8px', fontSize: 12 }}>
+              className="lofi-input"
+              style={{ fontSize: 13 }}
+            />
+            <select
+              value={parentId ?? ''}
+              onChange={e => setParentId(e.target.value ? Number(e.target.value) : null)}
+              className="lofi-select"
+              style={{ fontSize: 12 }}
+            >
               <option value="">Root deck</option>
               {decks.map(d => <option key={d.id} value={d.id}>{d.full_name}</option>)}
             </select>
             {createError && (
-              <div style={{ color: '#dc2626', fontSize: 11, background: '#fef2f2', padding: '4px 8px', borderRadius: 6 }}>{createError}</div>
+              <div style={{ color: '#f87171', fontSize: 11, background: 'rgba(220,38,38,0.1)', padding: '4px 8px', borderRadius: 6 }}>{createError}</div>
             )}
             <div style={{ display: 'flex', gap: 6 }}>
-              <button onClick={handleCreate} disabled={creating}
-                style={{ flex: 1, background: creating ? '#94a3b8' : '#7c3aed', color: '#fff', border: 'none', borderRadius: 8, padding: '6px', fontSize: 12, fontWeight: 800, cursor: creating ? 'wait' : 'pointer' }}>
+              <button onClick={handleCreate} disabled={creating} className="btn-primary" style={{ flex: 1, padding: '7px', fontSize: 12 }}>
                 {creating ? '…' : 'Create'}
               </button>
-              <button onClick={() => { setShowForm(false); setCreateError(null); }}
-                style={{ flex: 1, background: '#f1f5f9', border: 'none', borderRadius: 8, padding: '6px', fontSize: 12, cursor: 'pointer' }}>Cancel</button>
+              <button onClick={() => { setShowForm(false); setCreateError(null); }} className="btn-muted" style={{ flex: 1 }}>Cancel</button>
             </div>
           </div>
         ) : (
-          <button onClick={() => setShowForm(true)}
-            style={{ width: '100%', background: '#0f172a', color: '#fff', border: 'none', borderRadius: 10, padding: '9px', fontSize: 12, fontWeight: 900, cursor: 'pointer', letterSpacing: 1 }}>
+          <button onClick={() => setShowForm(true)} className="btn-primary" style={{ width: '100%', padding: '9px', fontSize: 12, letterSpacing: 1 }}>
             + NEW DECK
           </button>
         )}

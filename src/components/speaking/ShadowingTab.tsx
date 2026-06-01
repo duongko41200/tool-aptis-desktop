@@ -66,72 +66,79 @@ export default function ShadowingTab() {
   };
 
   return (
-    <div className="p-4 h-full flex flex-col gap-4">
-      <div className="flex gap-2">
+    <div style={{ padding: 16, height: '100%', display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {/* URL Input row */}
+      <div className="glass-card" style={{ display: 'flex', gap: 8, padding: '10px 14px', alignItems: 'center' }}>
         <input
           type="text"
           value={youtubeUrl}
           onChange={(e) => setYoutubeUrl(e.target.value)}
           placeholder="Paste YouTube URL..."
-          className="flex-1 border rounded px-3 py-2 text-sm"
+          className="lofi-input"
+          style={{ flex: 1 }}
           onKeyDown={(e) => e.key === 'Enter' && handleLoadVideo()}
         />
-        <button onClick={handleLoadVideo} disabled={loading}
-          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:bg-gray-300">
-          {loading ? 'Loading...' : 'Load'}
+        <button onClick={handleLoadVideo} disabled={loading} className="btn-primary" style={{ flexShrink: 0 }}>
+          {loading ? 'Loading…' : 'Load'}
         </button>
         {sessionId && (
-          <label className="border px-4 py-2 rounded cursor-pointer hover:bg-gray-50 text-sm">
+          <label className="btn-ghost" style={{ flexShrink: 0, cursor: 'pointer', fontSize: '0.875rem' }}>
             Import SRT
-            <input type="file" accept=".srt" className="hidden" onChange={handleSrtImport} />
+            <input type="file" accept=".srt" style={{ display: 'none' }} onChange={handleSrtImport} />
           </label>
         )}
       </div>
 
-      {error && <div className="bg-red-50 text-red-600 p-3 rounded text-sm">{error}</div>}
+      {error && (
+        <div style={{ background: 'rgba(220,38,38,0.12)', border: '1px solid rgba(220,38,38,0.3)', color: '#f87171', padding: '10px 14px', borderRadius: 12, fontSize: 13 }}>{error}</div>
+      )}
 
       {sessionId && (
         <>
-          <div className="flex gap-4 flex-1 min-h-0">
-            <div className="flex-1 flex flex-col gap-3">
-              <VideoPlayer
-                url={youtubeUrl}
-                onTimeUpdate={setCurrentTimeMs}
-                repeatRange={repeatRange}
-              />
-              <RepeatRangeControl
-                onRangeChange={(s, e, l) => setRepeatRange({ startMs: s, endMs: e, loopMode: l })}
-              />
+          <div style={{ display: 'flex', gap: 12, flex: 1, minHeight: 0 }}>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
+                <VideoPlayer url={youtubeUrl} onTimeUpdate={setCurrentTimeMs} repeatRange={repeatRange} />
+              </div>
+              <div className="glass-card" style={{ padding: '10px 14px' }}>
+                <RepeatRangeControl onRangeChange={(s, e, l) => setRepeatRange({ startMs: s, endMs: e, loopMode: l })} />
+              </div>
             </div>
-            <div className="w-80 flex flex-col">
-              <SubtitleEditor
-                subtitles={subtitles}
-                currentTimeMs={currentTimeMs}
-                onSubtitleChange={(id, text) =>
-                  setSubtitles((prev) => prev.map((s) => s.id === id ? { ...s, text } : s))
-                }
-              />
+            <div style={{ width: 300, flexShrink: 0 }}>
+              <div className="glass-card-dark" style={{ height: '100%' }}>
+                <SubtitleEditor
+                  subtitles={subtitles}
+                  currentTimeMs={currentTimeMs}
+                  onSubtitleChange={(id, text) =>
+                    setSubtitles((prev) => prev.map((s) => s.id === id ? { ...s, text } : s))
+                  }
+                />
+              </div>
             </div>
           </div>
 
-          <RecordingControls
-            isRecording={isRecording}
-            durationMs={durationMs}
-            audioLevel={audioLevel}
-            onStart={startRecording}
-            onStop={handleRecordStop}
-            disabled={loading}
-          />
+          <div className="glass-card" style={{ padding: '10px 14px' }}>
+            <RecordingControls
+              isRecording={isRecording}
+              durationMs={durationMs}
+              audioLevel={audioLevel}
+              onStart={startRecording}
+              onStop={handleRecordStop}
+              disabled={loading}
+            />
+          </div>
 
           {loading && <LoadingSpinner label="Processing recording..." />}
 
           {result && result.accuracy_score !== null && (
-            <AccuracyScore
-              accuracyScore={result.accuracy_score ?? 0}
-              missedWordPct={result.missed_word_pct ?? 0}
-              mispronounced={result.mispronounced_words ?? []}
-              transcription={result.transcription ?? ''}
-            />
+            <div className="glass-card" style={{ padding: 16 }}>
+              <AccuracyScore
+                accuracyScore={result.accuracy_score ?? 0}
+                missedWordPct={result.missed_word_pct ?? 0}
+                mispronounced={result.mispronounced_words ?? []}
+                transcription={result.transcription ?? ''}
+              />
+            </div>
           )}
         </>
       )}

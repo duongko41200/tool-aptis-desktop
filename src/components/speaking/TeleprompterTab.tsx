@@ -56,76 +56,88 @@ export default function TeleprompterTab() {
   };
 
   return (
-    <div className="p-4 h-full flex flex-col gap-4">
+    <div style={{ padding: 16, height: '100%', display: 'flex', flexDirection: 'column', gap: 12 }}>
       {!fullscreen ? (
         <>
-          <div className="flex gap-4">
-            <div className="flex-1">
-              <label className="block text-sm font-medium mb-1">Text to read</label>
+          <div style={{ display: 'flex', gap: 12 }}>
+            {/* Text area */}
+            <div style={{ flex: 1 }}>
+              <label className="label-upper" style={{ display: 'block', marginBottom: 6 }}>Text to read</label>
               <textarea
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 placeholder="Paste or type the text you want to practice reading..."
                 rows={8}
-                className="w-full border rounded px-3 py-2 text-sm resize-none"
+                className="lofi-input"
+                style={{ resize: 'none' }}
               />
-              <p className="text-xs text-gray-500 mt-1">{text.split(/\s+/).filter(Boolean).length} words</p>
+              <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>
+                {text.split(/\s+/).filter(Boolean).length} words
+              </p>
             </div>
-            <div className="w-64 space-y-3 bg-white border rounded-lg p-4">
-              <h3 className="font-medium">Display Settings</h3>
+
+            {/* Settings panel */}
+            <div className="glass-card-dark" style={{ width: 240, padding: 16, display: 'flex', flexDirection: 'column', gap: 14, flexShrink: 0 }}>
+              <h3 style={{ margin: 0, fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>Display Settings</h3>
               <div>
-                <label className="text-xs text-gray-600">Scroll Speed: {scrollSpeed.toFixed(1)}x</label>
+                <label className="label-upper" style={{ display: 'block', marginBottom: 4 }}>Scroll Speed: {scrollSpeed.toFixed(1)}x</label>
                 <input type="range" min="0.5" max="3" step="0.1" value={scrollSpeed}
                   onChange={(e) => setScrollSpeed(parseFloat(e.target.value))}
-                  className="w-full" />
+                  style={{ width: '100%', accentColor: 'var(--accent-primary)' }} />
               </div>
               <div>
-                <label className="text-xs text-gray-600">Font Size: {fontSize}px</label>
+                <label className="label-upper" style={{ display: 'block', marginBottom: 4 }}>Font Size: {fontSize}px</label>
                 <input type="range" min="20" max="80" step="2" value={fontSize}
                   onChange={(e) => setFontSize(parseInt(e.target.value))}
-                  className="w-full" />
+                  style={{ width: '100%', accentColor: 'var(--accent-primary)' }} />
               </div>
-              <div className="flex gap-2">
+              <div style={{ display: 'flex', gap: 12 }}>
                 <div>
-                  <label className="text-xs text-gray-600">Background</label>
+                  <label className="label-upper" style={{ display: 'block', marginBottom: 4 }}>Background</label>
                   <input type="color" value={bgColor} onChange={(e) => setBgColor(e.target.value)}
-                    className="block w-12 h-8 rounded border" />
+                    style={{ display: 'block', width: 44, height: 32, borderRadius: 8, border: '1px solid var(--border-glass)', cursor: 'pointer' }} />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-600">Text</label>
+                  <label className="label-upper" style={{ display: 'block', marginBottom: 4 }}>Text</label>
                   <input type="color" value={textColor} onChange={(e) => setTextColor(e.target.value)}
-                    className="block w-12 h-8 rounded border" />
+                    style={{ display: 'block', width: 44, height: 32, borderRadius: 8, border: '1px solid var(--border-glass)', cursor: 'pointer' }} />
                 </div>
               </div>
             </div>
           </div>
 
-          {error && <div className="bg-red-50 text-red-600 p-3 rounded text-sm">{error}</div>}
+          {error && (
+            <div style={{ background: 'rgba(220,38,38,0.12)', border: '1px solid rgba(220,38,38,0.3)', color: '#f87171', padding: '10px 14px', borderRadius: 12, fontSize: 13 }}>{error}</div>
+          )}
 
-          <RecordingControls
-            isRecording={isRecording}
-            durationMs={durationMs}
-            audioLevel={audioLevel}
-            onStart={handleStartRecording}
-            onStop={handleStopRecording}
-            disabled={!text.trim() || loading}
-          />
+          <div className="glass-card" style={{ padding: '10px 14px' }}>
+            <RecordingControls
+              isRecording={isRecording}
+              durationMs={durationMs}
+              audioLevel={audioLevel}
+              onStart={handleStartRecording}
+              onStop={handleStopRecording}
+              disabled={!text.trim() || loading}
+            />
+          </div>
 
           {loading && <LoadingSpinner label="Processing..." />}
 
           {result && result.accuracy_score !== null && (
-            <AccuracyScore
-              accuracyScore={result.accuracy_score ?? 0}
-              missedWordPct={result.missed_word_pct ?? 0}
-              mispronounced={result.mispronounced_words ?? []}
-              transcription={result.transcription ?? ''}
-              readingSpeedWpm={result.reading_speed_wpm ?? undefined}
-            />
+            <div className="glass-card" style={{ padding: 16 }}>
+              <AccuracyScore
+                accuracyScore={result.accuracy_score ?? 0}
+                missedWordPct={result.missed_word_pct ?? 0}
+                mispronounced={result.mispronounced_words ?? []}
+                transcription={result.transcription ?? ''}
+                readingSpeedWpm={result.reading_speed_wpm ?? undefined}
+              />
+            </div>
           )}
         </>
       ) : (
-        <div className="fixed inset-0 z-50 flex flex-col">
-          <div className="flex-1">
+        <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ flex: 1 }}>
             <TeleprompterDisplay
               text={text}
               scrollSpeed={scrollSpeed}
@@ -135,7 +147,7 @@ export default function TeleprompterTab() {
               isScrolling={isRecording}
             />
           </div>
-          <div className="bg-black bg-opacity-90 p-4">
+          <div style={{ background: 'rgba(0,0,0,0.92)', padding: 16, backdropFilter: 'blur(12px)' }}>
             <RecordingControls
               isRecording={isRecording}
               durationMs={durationMs}

@@ -34,78 +34,69 @@ export default function SettingsScreen() {
     setTimeout(() => setSaved(false), 2000);
   };
 
-  return (
-    <div className="max-w-2xl mx-auto p-6 space-y-6">
-      <h1 className="text-2xl font-bold">Settings</h1>
+  const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
+    <div className="glass-card-dark" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>{title}</h2>
+      {children}
+    </div>
+  );
 
-      <div className="bg-white rounded-lg border p-4 space-y-4">
-        <h2 className="font-semibold text-lg">AI Configuration</h2>
+  const FieldLabel = ({ children }: { children: React.ReactNode }) => (
+    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>{children}</label>
+  );
+
+  return (
+    <div style={{ maxWidth: 560, margin: '0 auto', padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <h1 style={{ margin: 0, fontSize: 22, fontWeight: 900, color: 'var(--text-primary)' }}>Settings</h1>
+
+      <Section title="AI Configuration">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Gemini API Key
-          </label>
+          <FieldLabel>Gemini API Key</FieldLabel>
           <input
             type="password"
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
             placeholder="Enter your Gemini API key"
-            className="w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="lofi-input"
           />
-          <p className="text-xs text-gray-500 mt-1">Stored securely, never in plaintext</p>
+          <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: '6px 0 0' }}>Stored securely, never in plaintext</p>
         </div>
-      </div>
+      </Section>
 
-      <div className="bg-white rounded-lg border p-4 space-y-4">
-        <h2 className="font-semibold text-lg">Clipboard</h2>
-        <label className="flex items-center gap-3 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={clipboardEnabled}
-            onChange={(e) => setClipboardEnabled(e.target.checked)}
-            className="w-4 h-4"
-          />
-          <span className="text-sm">Enable clipboard monitoring</span>
+      <Section title="Clipboard">
+        <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
+          <div className={`lofi-toggle ${clipboardEnabled ? 'on' : 'off'}`} onClick={() => setClipboardEnabled(v => !v)}>
+            <div className="lofi-toggle-thumb" />
+          </div>
+          <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>Enable clipboard monitoring</span>
         </label>
-      </div>
+      </Section>
 
-      <div className="bg-white rounded-lg border p-4 space-y-4">
-        <h2 className="font-semibold text-lg">Speaking</h2>
+      <Section title="Speaking">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">TTS Voice</label>
-          <select
-            value={ttsVoice}
-            onChange={(e) => setTtsVoice(e.target.value)}
-            className="w-full border rounded px-3 py-2 text-sm"
-          >
+          <FieldLabel>TTS Voice</FieldLabel>
+          <select value={ttsVoice} onChange={(e) => setTtsVoice(e.target.value)} className="lofi-select">
             <option value="">Default voice</option>
             {voices.map((v) => (
               <option key={v.name} value={v.name}>{v.name} ({v.lang})</option>
             ))}
           </select>
         </div>
-      </div>
+      </Section>
 
-      <div className="bg-white rounded-lg border p-4 space-y-4">
-        <h2 className="font-semibold text-lg">Writing</h2>
+      <Section title="Writing">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Default Evaluation Mode</label>
-          <select
-            value={writingMode}
-            onChange={(e) => setWritingMode(e.target.value as EvaluationMode)}
-            className="w-full border rounded px-3 py-2 text-sm"
-          >
+          <FieldLabel>Default Evaluation Mode</FieldLabel>
+          <select value={writingMode} onChange={(e) => setWritingMode(e.target.value as EvaluationMode)} className="lofi-select">
             <option value="general">General</option>
             <option value="ielts">IELTS</option>
             <option value="toeic">TOEIC</option>
             <option value="aptis">Aptis</option>
           </select>
         </div>
-      </div>
+      </Section>
 
-      <button
-        onClick={handleSave}
-        className="bg-blue-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors"
-      >
+      <button onClick={handleSave} className="btn-primary" style={{ alignSelf: 'flex-start', padding: '11px 32px', fontSize: '0.9rem' }}>
         {saved ? '✓ Saved!' : 'Save Settings'}
       </button>
     </div>

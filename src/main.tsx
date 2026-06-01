@@ -21,7 +21,9 @@ const isPopupWindow = window.location.pathname === '/popup';
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     {isPopupWindow ? (
-      <PopupApp />
+      <QueryClientProvider client={queryClient}>
+        <PopupApp />
+      </QueryClientProvider>
     ) : (
       <Provider store={store}>
         <QueryClientProvider client={queryClient}>

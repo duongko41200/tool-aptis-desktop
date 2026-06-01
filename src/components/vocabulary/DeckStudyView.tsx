@@ -6,6 +6,7 @@ import type { Deck } from '../../types/anki';
 interface Props {
   deck: Deck;
   onStartReview: () => void;
+  onShowGuide: () => void;
 }
 
 const SEED_NOTES = [
@@ -21,7 +22,7 @@ const SEED_NOTES = [
   { front: 'exacerbate', back: 'làm trầm trọng thêm', example: 'Stress can exacerbate health issues.', tags: 'vocab' },
 ];
 
-export default function DeckStudyView({ deck, onStartReview }: Props) {
+export default function DeckStudyView({ deck, onStartReview, onShowGuide }: Props) {
   const [showEditor, setShowEditor] = useState(false);
   const [search, setSearch] = useState('');
   const [seeding, setSeeding] = useState(false);
@@ -53,8 +54,8 @@ export default function DeckStudyView({ deck, onStartReview }: Props) {
   if (showEditor) {
     return (
       <div style={{ padding: 24, maxWidth: 560, margin: '0 auto' }}>
-        <button onClick={() => setShowEditor(false)} style={{ background: 'none', border: 'none', color: '#7c3aed', fontWeight: 700, fontSize: 13, cursor: 'pointer', marginBottom: 16 }}>← Back</button>
-        <div style={{ background: '#fff', borderRadius: 20, border: '2px solid #e2e8f0', padding: 24 }}>
+        <button onClick={() => setShowEditor(false)} className="btn-ghost" style={{ marginBottom: 16, fontSize: 13 }}>← Back</button>
+        <div className="glass-card-dark" style={{ padding: 24 }}>
           <NoteEditor deckId={deck.id} onClose={() => setShowEditor(false)} />
         </div>
       </div>
@@ -62,90 +63,96 @@ export default function DeckStudyView({ deck, onStartReview }: Props) {
   }
 
   return (
-    <div style={{ height: '100%', overflowY: 'auto', background: '#f8fafc' }}>
+    <div style={{ height: '100%', overflowY: 'auto' }}>
       {/* Deck header */}
-      <div style={{ background: '#0f172a', padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div className="glass-card-dark" style={{ margin: 16, marginBottom: 0, padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderRadius: 14 }}>
         <div>
-          <div style={{ fontSize: 10, color: '#7c3aed', fontWeight: 900, letterSpacing: 2 }}>STUDYING</div>
-          <div style={{ fontSize: 20, fontWeight: 900, color: '#f8fafc' }}>{deck.full_name}</div>
+          <div className="label-upper" style={{ color: 'var(--accent-primary)' }}>STUDYING</div>
+          <div style={{ fontSize: 18, fontWeight: 900, color: 'var(--text-primary)', marginTop: 2 }}>{deck.full_name}</div>
         </div>
-        <button onClick={handleSeed} disabled={seeding} title="Add 10 sample notes"
-          style={{ background: seeding ? '#334155' : 'rgba(16,185,129,0.2)', border: '1px solid #10b981', color: '#6ee7b7', borderRadius: 8, padding: '5px 12px', fontSize: 11, fontWeight: 700, cursor: seeding ? 'wait' : 'pointer' }}>
-          {seeding ? '⏳ Seeding…' : '🧪 Seed'}
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={onShowGuide} className="btn-ghost" style={{ fontSize: 11, padding: '5px 12px' }}>📖 Guide</button>
+          <button onClick={handleSeed} disabled={seeding} title="Add 10 sample notes" className="btn-ghost" style={{ fontSize: 11, padding: '5px 12px', borderColor: 'rgba(16,185,129,0.5)', color: '#6ee7b7' }}>
+            {seeding ? '⏳…' : '🧪 Seed'}
+          </button>
+        </div>
       </div>
 
-      <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
         {/* Stats */}
-        <div style={{ display: 'flex', gap: 12 }}>
+        <div style={{ display: 'flex', gap: 10 }}>
           {[
-            { label: 'NEW', count: dueResult?.new_count ?? 0, color: '#3b82f6' },
-            { label: 'LEARNING', count: dueResult?.learning_count ?? 0, color: '#f97316' },
-            { label: 'REVIEW', count: dueResult?.review_count ?? 0, color: '#22c55e' },
+            { label: 'NEW',      count: dueResult?.new_count ?? 0,      color: '#60a5fa' },
+            { label: 'LEARNING', count: dueResult?.learning_count ?? 0, color: '#fb923c' },
+            { label: 'REVIEW',   count: dueResult?.review_count ?? 0,   color: '#4ade80' },
           ].map(s => (
-            <div key={s.label} style={{ flex: 1, background: '#fff', borderRadius: 14, padding: '12px 10px', textAlign: 'center', border: `2px solid ${s.color}22` }}>
-              <div style={{ fontSize: 28, fontWeight: 900, color: s.color }}>{s.count}</div>
-              <div style={{ fontSize: 9, fontWeight: 800, color: '#94a3b8', letterSpacing: 1 }}>{s.label}</div>
+            <div key={s.label} className="glass-card" style={{ flex: 1, padding: '12px 10px', textAlign: 'center' }}>
+              <div style={{ fontSize: 26, fontWeight: 900, color: s.color }}>{s.count}</div>
+              <div className="label-upper" style={{ marginTop: 2 }}>{s.label}</div>
             </div>
           ))}
         </div>
 
         {/* Start Review CTA */}
-        <div style={{ background: totalDue > 0 ? 'linear-gradient(135deg,#0f172a,#1e1b4b)' : '#fff', borderRadius: 18, padding: '20px 22px', border: totalDue > 0 ? 'none' : '2px solid #e2e8f0', position: 'relative', overflow: 'hidden' }}>
+        <div className={totalDue > 0 ? 'glass-card-dark' : 'glass-card'} style={{ padding: '20px 22px', position: 'relative', overflow: 'hidden', borderRadius: 16, ...(totalDue > 0 ? { borderColor: 'rgba(212,245,106,0.2)' } : {}) }}>
           {totalDue > 0 && (
-            <div style={{ position: 'absolute', right: 16, top: '50%', transform: 'translateY(-50%)', fontSize: 80, fontWeight: 900, color: 'rgba(124,58,237,0.15)', lineHeight: 1 }}>{totalDue}</div>
+            <div style={{ position: 'absolute', right: 16, top: '50%', transform: 'translateY(-50%)', fontSize: 72, fontWeight: 900, color: 'rgba(212,245,106,0.08)', lineHeight: 1, pointerEvents: 'none' }}>{totalDue}</div>
           )}
           <div style={{ position: 'relative' }}>
-            <div style={{ fontSize: 18, fontWeight: 900, color: totalDue > 0 ? '#f8fafc' : '#0f172a', marginBottom: 4 }}>
+            <div style={{ fontSize: 17, fontWeight: 900, color: 'var(--text-primary)', marginBottom: 4 }}>
               {totalDue > 0 ? `${totalDue} cards to review` : notes.length === 0 ? 'Add your first note' : '🎉 All caught up!'}
             </div>
-            <button onClick={onStartReview}
-              style={{
-                marginTop: 12, display: 'inline-flex', alignItems: 'center', gap: 8,
-                background: totalDue > 0 ? '#7c3aed' : '#e2e8f0',
-                color: totalDue > 0 ? '#fff' : '#94a3b8',
-                border: 'none', borderRadius: 12, padding: '11px 22px', fontSize: 14, fontWeight: 900, cursor: 'pointer',
-                boxShadow: totalDue > 0 ? '0 0 20px rgba(124,58,237,0.4)' : 'none',
-              }}>
+            <button
+              onClick={onStartReview}
+              className={totalDue > 0 ? 'btn-primary' : 'btn-muted'}
+              style={{ marginTop: 10 }}
+            >
               ▶ START REVIEW{totalDue > 0 ? ` (${totalDue})` : ''}
             </button>
           </div>
         </div>
 
         {/* Note list */}
-        <div style={{ background: '#fff', borderRadius: 16, border: '2px solid #e2e8f0', overflow: 'hidden' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '2px solid #0f172a', background: '#0f172a' }}>
-            <span style={{ fontSize: 11, fontWeight: 900, color: '#f8fafc', letterSpacing: 2 }}>NOTES ({notes.length})</span>
+        <div className="glass-card-dark" style={{ overflow: 'hidden' }}>
+          {/* Note list header */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderBottom: '1px solid var(--border-dark)' }}>
+            <span className="label-upper">NOTES ({notes.length})</span>
             <div style={{ display: 'flex', gap: 8 }}>
-              <input value={search} onChange={e => setSearch(e.target.value)}
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
                 placeholder="Search…"
-                style={{ border: '1px solid #334155', background: '#1e293b', color: '#f1f5f9', borderRadius: 6, padding: '3px 8px', fontSize: 11, outline: 'none', width: 100 }} />
-              <button onClick={() => setShowEditor(true)}
-                style={{ background: '#7c3aed', color: '#fff', border: 'none', borderRadius: 8, padding: '4px 12px', fontSize: 11, fontWeight: 800, cursor: 'pointer' }}>
+                className="lofi-input"
+                style={{ width: 100, padding: '3px 8px', fontSize: 11 }}
+              />
+              <button onClick={() => setShowEditor(true)} className="btn-primary" style={{ padding: '4px 12px', fontSize: 11 }}>
                 + Add Note
               </button>
             </div>
           </div>
+
           {notes.length === 0 ? (
-            <div style={{ padding: 24, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
+            <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-secondary)', fontSize: 13 }}>
               No notes yet. Click "+ Add Note" or "🧪 Seed" to get started.
             </div>
           ) : notes.slice(0, 20).map(n => (
-            <div key={n.id} style={{ display: 'flex', alignItems: 'center', padding: '10px 16px', borderBottom: '1px solid #f1f5f9', gap: 10 }}>
+            <div key={n.id} style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', borderBottom: '1px solid var(--border-dark)', gap: 10 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <span style={{ fontWeight: 700, fontSize: 14, color: '#0f172a' }}>{n.front.slice(0, 50)}{n.front.length > 50 ? '…' : ''}</span>
-                {n.back && <span style={{ color: '#94a3b8', fontSize: 12, marginLeft: 8 }}>{n.back.slice(0, 40)}</span>}
+                <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-primary)' }}>{n.front.slice(0, 50)}{n.front.length > 50 ? '…' : ''}</span>
+                {n.back && <span style={{ color: 'var(--text-secondary)', fontSize: 12, marginLeft: 8 }}>{n.back.slice(0, 40)}</span>}
               </div>
-              <span style={{ fontSize: 9, fontWeight: 800, padding: '2px 6px', borderRadius: 99, background: n.template_type === 'cloze' ? '#faf5ff' : '#f0fdf4', color: n.template_type === 'cloze' ? '#5b21b6' : '#065f46' }}>
+              <span style={{ fontSize: 9, fontWeight: 800, padding: '2px 6px', borderRadius: 99, background: n.template_type === 'cloze' ? 'rgba(212,245,106,0.12)' : 'rgba(74,222,128,0.12)', color: n.template_type === 'cloze' ? 'var(--accent-primary)' : '#4ade80' }}>
                 {n.template_type.toUpperCase()}
               </span>
               {n.tags && n.tags.split(',').slice(0, 2).map((t, i) => (
-                <span key={i} style={{ fontSize: 9, fontWeight: 700, padding: '2px 5px', borderRadius: 99, background: '#f1f5f9', color: '#64748b' }}>{t.trim()}</span>
+                <span key={i} style={{ fontSize: 9, fontWeight: 700, padding: '2px 5px', borderRadius: 99, background: 'rgba(255,255,255,0.08)', color: 'var(--text-secondary)' }}>{t.trim()}</span>
               ))}
-              <button onClick={() => deleteNote(n.id)} style={{ background: 'none', border: 'none', color: '#cbd5e1', cursor: 'pointer', fontSize: 14 }}>×</button>
+              <button onClick={() => deleteNote(n.id)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.2)', cursor: 'pointer', fontSize: 14 }}>×</button>
             </div>
           ))}
-          {notes.length > 20 && <div style={{ padding: '8px 16px', fontSize: 12, color: '#94a3b8', textAlign: 'center' }}>+{notes.length - 20} more notes</div>}
+          {notes.length > 20 && (
+            <div style={{ padding: '8px 14px', fontSize: 12, color: 'var(--text-secondary)', textAlign: 'center' }}>+{notes.length - 20} more notes</div>
+          )}
         </div>
       </div>
     </div>

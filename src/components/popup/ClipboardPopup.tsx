@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, type KeyboardEvent } from 'react';
-import { saveCapturedContent, hideClipboardPopup } from '../../services/tauriCommands';
+import { saveCapturedContent } from '../../services/tauriCommands';
 import type { ContentCategory } from '../../types';
 import AddToVocabSection from './AddToVocabSection';
 
@@ -18,7 +18,7 @@ const CATEGORIES: { value: ContentCategory; label: string; emoji: string; bg: st
   { value: 'general',    label: 'General',  emoji: '🗂️', bg: '#f1f5f9', text: '#475569' },
 ];
 
-const DISMISS_SEC = 10;
+const DISMISS_SEC = 30;
 
 export default function ClipboardPopup({ content, charCount, onClose }: Props) {
   const [category, setCategory]     = useState<ContentCategory>('general');
@@ -38,10 +38,9 @@ export default function ClipboardPopup({ content, charCount, onClose }: Props) {
     if (cdRef.current)      clearInterval(cdRef.current);
   };
 
-  const close = async () => {
+  const close = () => {
     clearTimers();
-    onClose();
-    await hideClipboardPopup();
+    onClose(); // PopupApp.handleClose → setVisible(false) + hideClipboardPopup()
   };
 
   const resetTimer = () => {
@@ -95,10 +94,9 @@ export default function ClipboardPopup({ content, charCount, onClose }: Props) {
   const ringPct = (countdown / DISMISS_SEC) * 283;
 
   return (
-    <div className="w-full h-full flex items-center justify-center p-0 select-none">
+    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', userSelect: 'none', background: 'transparent' }}>
       <div
-        className="w-full rounded-2xl overflow-hidden"
-        style={{ boxShadow: '0 8px 40px rgba(0,0,0,0.22)', background: '#fff' }}
+        style={{ width: '100%', borderRadius: 16, overflow: 'hidden', boxShadow: '0 8px 40px rgba(0,0,0,0.30)', background: '#ffffff' }}
         onMouseEnter={resetTimer}
       >
         {/* Header — drag region */}

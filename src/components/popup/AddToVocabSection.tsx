@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useDecks, useCreateDeck, useCreateNoteFromClipboard } from '../../hooks/useAnki';
 import type { TemplateType } from '../../types/anki';
 
@@ -16,6 +16,11 @@ export default function AddToVocabSection({ content, onSaved }: Props) {
   const [template, setTemplate] = useState<TemplateType>('basic');
   const [front, setFront] = useState(content.slice(0, 200));
   const [back, setBack] = useState('');
+
+  // Update front when clipboard content changes
+  useEffect(() => {
+    setFront(content.slice(0, 200));
+  }, [content]);
   const [tags, setTags] = useState('');
   const [newDeckName, setNewDeckName] = useState('');
   const [showNewDeck, setShowNewDeck] = useState(false);

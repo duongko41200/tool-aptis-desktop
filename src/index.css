@@ -1,6 +1,333 @@
+@import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800;900&display=swap');
 @import "tailwindcss";
 
-/* Popup window needs transparent background */
+/* ─── Design Tokens ────────────────────────────────── */
+:root {
+  --accent-primary:    #D4F56A;
+  --accent-warm:       #F5C842;
+  --surface-glass:     rgba(255, 255, 255, 0.07);
+  --surface-dark:      rgba(12, 10, 8, 0.78);
+  --text-primary:      #F5F0E8;
+  --text-secondary:    rgba(245, 240, 232, 0.55);
+  --border-glass:      rgba(255, 255, 255, 0.12);
+  --border-dark:       rgba(255, 255, 255, 0.07);
+  --shadow-glow:       0 4px 24px rgba(0, 0, 0, 0.35);
+  --radius-card:       16px;
+  --radius-pill:       9999px;
+}
+
+/* ─── Global Reset ─────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Be Vietnam Pro', 'Inter', sans-serif;
+  background: #0d1117;
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+/* ─── App Shell ─────────────────────────────────────── */
+.lofi-app {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Background gradient (no image dependency) */
+.lofi-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(ellipse 80% 60% at 70% 30%, rgba(60, 40, 80, 0.55) 0%, transparent 70%),
+    radial-gradient(ellipse 60% 70% at 10% 80%, rgba(20, 50, 60, 0.45) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 50% at 50% 50%, rgba(30, 25, 45, 0.8) 0%, transparent 100%),
+    linear-gradient(160deg, #0d1117 0%, #1a1424 35%, #0d1b2a 65%, #120d1a 100%);
+}
+
+/* Noise texture overlay */
+.lofi-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+/* ─── Particles ─────────────────────────────────────── */
+.lofi-particles {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+@keyframes float-bubble {
+  0%   { transform: translateY(0)     translateX(0);    opacity: 0.25; }
+  33%  { transform: translateY(-18px) translateX(5px);  opacity: 0.55; }
+  66%  { transform: translateY(-32px) translateX(-4px); opacity: 0.35; }
+  100% { transform: translateY(-50px) translateX(2px);  opacity: 0.05; }
+}
+
+.bubble {
+  position: absolute;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.03);
+  animation: float-bubble linear infinite;
+  pointer-events: none;
+}
+
+/* ─── Content Layer ─────────────────────────────────── */
+.lofi-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+/* ─── Glass Card ────────────────────────────────────── */
+.glass-card {
+  background: var(--surface-glass);
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-glow);
+}
+
+.glass-card-dark {
+  background: var(--surface-dark);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  border: 1px solid var(--border-dark);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-glow);
+}
+
+/* ─── Buttons ───────────────────────────────────────── */
+.btn-primary {
+  background: var(--accent-primary);
+  color: #1a1a0f;
+  padding: 10px 28px;
+  border-radius: var(--radius-pill);
+  font-weight: 800;
+  font-size: 0.875rem;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 18px rgba(212, 245, 106, 0.3);
+  transition: transform 0.15s, box-shadow 0.15s;
+  font-family: inherit;
+  letter-spacing: 0.02em;
+}
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 26px rgba(212, 245, 106, 0.45);
+}
+.btn-primary:active { transform: scale(0.97); }
+.btn-primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-ghost {
+  background: transparent;
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
+  color: var(--text-primary);
+  padding: 8px 20px;
+  border-radius: var(--radius-pill);
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  font-family: inherit;
+}
+.btn-ghost:hover {
+  border-color: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.btn-danger {
+  background: rgba(220, 38, 38, 0.8);
+  color: #fff;
+  padding: 6px 16px;
+  border-radius: 10px;
+  border: none;
+  font-weight: 700;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.15s;
+  font-family: inherit;
+}
+.btn-danger:hover { background: rgba(220, 38, 38, 1); }
+
+.btn-muted {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-glass);
+  color: var(--text-secondary);
+  padding: 6px 16px;
+  border-radius: 10px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+  font-family: inherit;
+}
+.btn-muted:hover { background: rgba(255, 255, 255, 0.13); color: var(--text-primary); }
+
+/* ─── Badge ─────────────────────────────────────────── */
+.badge-pill {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-pill);
+  padding: 3px 10px;
+  font-size: 0.7rem;
+  color: var(--text-primary);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+/* ─── Form Inputs ───────────────────────────────────── */
+.lofi-input {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid var(--border-glass);
+  border-radius: 10px;
+  padding: 8px 12px;
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s;
+  width: 100%;
+}
+.lofi-input::placeholder { color: var(--text-secondary); }
+.lofi-input:focus { border-color: rgba(212, 245, 106, 0.5); }
+
+.lofi-select {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid var(--border-glass);
+  border-radius: 10px;
+  padding: 8px 12px;
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  font-family: inherit;
+  outline: none;
+  width: 100%;
+  cursor: pointer;
+}
+.lofi-select option { background: #1a1424; color: var(--text-primary); }
+
+/* ─── Section Label ─────────────────────────────────── */
+.label-upper {
+  font-size: 0.65rem;
+  font-weight: 900;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+/* ─── Scrollbar ─────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.28); }
+
+/* ─── TabBar ────────────────────────────────────────── */
+.lofi-tabbar {
+  position: relative;
+  z-index: 10;
+  background: rgba(10, 8, 14, 0.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border-dark);
+  display: flex;
+  align-items: stretch;
+  padding: 0 4px;
+  flex-shrink: 0;
+}
+
+.lofi-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 16px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: color 0.15s;
+  position: relative;
+  font-family: inherit;
+  white-space: nowrap;
+}
+.lofi-tab:hover { color: var(--text-primary); }
+
+.lofi-tab.active {
+  color: var(--accent-primary);
+}
+.lofi-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 8px; right: 8px;
+  height: 2px;
+  background: var(--accent-primary);
+  border-radius: 2px 2px 0 0;
+  box-shadow: 0 0 8px rgba(212, 245, 106, 0.5);
+}
+
+/* ─── Tab Content Pane ──────────────────────────────── */
+.lofi-pane {
+  flex: 1;
+  overflow: auto;
+  padding: 16px;
+}
+
+/* ─── Stat Badge Colors ─────────────────────────────── */
+.stat-new     { color: #60a5fa; }
+.stat-learn   { color: #fb923c; }
+.stat-review  { color: #4ade80; }
+
+/* ─── Toggle Switch ─────────────────────────────────── */
+.lofi-toggle {
+  width: 40px; height: 22px;
+  border-radius: 99px;
+  position: relative;
+  cursor: pointer;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+.lofi-toggle.on  { background: var(--accent-primary); }
+.lofi-toggle.off { background: rgba(255,255,255,0.15); }
+.lofi-toggle-thumb {
+  position: absolute;
+  top: 3px;
+  width: 16px; height: 16px;
+  background: white;
+  border-radius: 50%;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+  transition: transform 0.2s;
+}
+.lofi-toggle.on  .lofi-toggle-thumb { transform: translateX(20px); }
+.lofi-toggle.off .lofi-toggle-thumb { transform: translateX(3px); }
+
+/* ─── Popup (transparent host) ─────────────────────── */
 .popup-transparent {
   background: transparent !important;
 }

@@ -24,35 +24,47 @@ export default function WritingTab() {
   };
 
   return (
-    <div className="flex h-full">
-      <aside className="w-64 border-r bg-white overflow-y-auto p-3 space-y-2">
-        <h3 className="font-semibold text-sm text-gray-600 uppercase tracking-wide">History</h3>
+    <div style={{ display: 'flex', height: '100%' }}>
+      {/* History sidebar */}
+      <aside className="glass-card-dark" style={{ width: 220, flexShrink: 0, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 8, borderRadius: 0, borderTop: 'none', borderBottom: 'none', borderLeft: 'none' }}>
+        <h3 className="label-upper" style={{ margin: 0 }}>History</h3>
         {submissions?.map((s) => (
           <button
             key={s.id}
-            className="w-full text-left p-2 rounded hover:bg-gray-50 border text-xs"
+            style={{ width: '100%', textAlign: 'left', padding: '8px 10px', borderRadius: 10, border: '1px solid var(--border-dark)', background: 'rgba(255,255,255,0.04)', color: 'var(--text-primary)', cursor: 'pointer', transition: 'background 0.15s' }}
+            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.04)')}
           >
-            <div className="font-medium truncate">{s.evaluation_mode.toUpperCase()} — {s.overall_score?.toFixed(1)}</div>
-            <div className="text-gray-400">{new Date(s.created_at).toLocaleDateString()}</div>
+            <div style={{ fontWeight: 700, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {s.evaluation_mode.toUpperCase()} — {s.overall_score?.toFixed(1)}
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>{new Date(s.created_at).toLocaleDateString()}</div>
           </button>
         ))}
         {(!submissions || submissions.length === 0) && (
-          <p className="text-xs text-gray-400">No submissions yet</p>
+          <p style={{ fontSize: 11, color: 'var(--text-secondary)' }}>No submissions yet</p>
         )}
       </aside>
 
-      <main className="flex-1 p-4 overflow-y-auto space-y-4">
-        <h2 className="text-xl font-bold">AI Writing Evaluation</h2>
-        <WritingEditor
-          value={text}
-          mode={mode}
-          onValueChange={setText}
-          onModeChange={setMode}
-          onEvaluate={handleEvaluate}
-          isLoading={isPending}
-          isOnline={isOnline}
-        />
-        {currentResult && <EvaluationReport result={currentResult} />}
+      {/* Main content */}
+      <main style={{ flex: 1, padding: 16, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <h2 style={{ margin: 0, fontSize: 20, fontWeight: 900, color: 'var(--text-primary)' }}>AI Writing Evaluation</h2>
+        <div className="glass-card-dark" style={{ padding: 16 }}>
+          <WritingEditor
+            value={text}
+            mode={mode}
+            onValueChange={setText}
+            onModeChange={setMode}
+            onEvaluate={handleEvaluate}
+            isLoading={isPending}
+            isOnline={isOnline}
+          />
+        </div>
+        {currentResult && (
+          <div className="glass-card" style={{ padding: 16 }}>
+            <EvaluationReport result={currentResult} />
+          </div>
+        )}
       </main>
     </div>
   );

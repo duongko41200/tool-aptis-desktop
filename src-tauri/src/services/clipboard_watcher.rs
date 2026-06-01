@@ -19,7 +19,7 @@ pub fn start_watcher(app: AppHandle, enabled_flag: Arc<AtomicBool>) {
             }
             if let Ok(mut clipboard) = arboard::Clipboard::new() {
                 if let Ok(text) = clipboard.get_text() {
-                    if text.len() >= 10 && text != last_text {
+                    if !text.is_empty() && text != last_text {
                         last_text = text.clone();
                         let _ = app.emit("clipboard:changed", ClipboardChangedPayload {
                             char_count: text.len(),
