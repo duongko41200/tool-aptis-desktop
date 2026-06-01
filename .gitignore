@@ -1,0 +1,39 @@
+# Node.js
+node_modules/
+dist/
+build/
+*.log
+.env*
+
+# Tauri
+src-tauri/target/
+src-tauri/WixTools/
+*.msi
+*.exe
+!src-tauri/src/*.exe
+
+# Rust
+target/
+**/*.rs.bk
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+*.tmp
+
+# pnpm
+.pnpm-store/
+
+# Test coverage
+coverage/
+
+
+# Added by cargo
+
+/target
