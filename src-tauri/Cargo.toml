@@ -24,3 +24,4 @@ arboard = "3"
 chrono = { version = "0.4", features = ["serde"] }
 base64 = "0.22"
 urlencoding = "2"
+tauri-plugin-positioner = "2"

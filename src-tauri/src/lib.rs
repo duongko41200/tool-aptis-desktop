@@ -17,6 +17,7 @@ pub struct AppState {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_positioner::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_sql::Builder::default()
             .add_migrations("sqlite:aptis.db", vec![
@@ -49,6 +50,20 @@ pub fn run() {
             };
             app.manage(state);
 
+            // Create hidden clipboard popup window at startup
+            tauri::WebviewWindowBuilder::new(
+                app,
+                "clipboard-popup",
+                tauri::WebviewUrl::App("/popup".into()),
+            )
+            .always_on_top(true)
+            .decorations(false)
+            .skip_taskbar(true)
+            .visible(false)
+            .inner_size(360.0, 280.0)
+            .resizable(false)
+            .build()?;
+
             let app_handle = app.handle().clone();
             services::clipboard_watcher::start_watcher(app_handle, clipboard_flag);
 
@@ -77,6 +92,8 @@ pub fn run() {
             commands::clipboard::process_content_with_ai,
             commands::clipboard::toggle_clipboard_monitoring,
             commands::clipboard::get_clipboard_status,
+            commands::clipboard::show_clipboard_popup,
+            commands::clipboard::hide_clipboard_popup,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

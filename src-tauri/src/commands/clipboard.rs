@@ -236,3 +236,26 @@ pub async fn get_clipboard_status(
     let enabled = state.clipboard_monitoring_enabled.load(Ordering::Relaxed);
     Ok(serde_json::json!({ "enabled": enabled }))
 }
+
+#[tauri::command]
+pub async fn show_clipboard_popup(app: tauri::AppHandle) -> Result<(), String> {
+    use tauri::Manager;
+    use tauri_plugin_positioner::{WindowExt, Position};
+
+    if let Some(window) = app.get_webview_window("clipboard-popup") {
+        window.show().map_err(|e| e.to_string())?;
+        window.set_focus().map_err(|e| e.to_string())?;
+        let _ = window.move_window(Position::BottomRight);
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn hide_clipboard_popup(app: tauri::AppHandle) -> Result<(), String> {
+    use tauri::Manager;
+
+    if let Some(window) = app.get_webview_window("clipboard-popup") {
+        window.hide().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}

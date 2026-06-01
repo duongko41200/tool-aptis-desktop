@@ -10,7 +10,8 @@ import VocabularyTab from './components/vocabulary/VocabularyTab';
 import ClipboardTab from './components/clipboard/ClipboardTab';
 import SettingsScreen from './components/shared/SettingsScreen';
 import ErrorBoundary from './components/shared/ErrorBoundary';
-import SavePopup from './components/clipboard/SavePopup';
+// SavePopup replaced by standalone popup window (002-clipboard-copy-popup)
+// import SavePopup from './components/clipboard/SavePopup';
 
 export default function App() {
   const dispatch = useDispatch();
@@ -40,7 +41,7 @@ export default function App() {
           {activeTab === 'settings' && <SettingsScreen />}
         </ErrorBoundary>
       </main>
-      <SavePopup />
+      {/* Popup handled by standalone clipboard-popup window */}
     </div>
   );
 }

@@ -111,3 +111,9 @@ export const toggleClipboardMonitoring = (enabled: boolean) =>
 
 export const getClipboardStatus = () =>
   invoke<{ enabled: boolean }>('get_clipboard_status');
+
+export const showClipboardPopup = () =>
+  invoke<void>('show_clipboard_popup');
+
+export const hideClipboardPopup = () =>
+  invoke<void>('hide_clipboard_popup');
