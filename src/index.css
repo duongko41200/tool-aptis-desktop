@@ -1,1 +1,6 @@
 @import "tailwindcss";
+
+/* Popup window needs transparent background */
+.popup-transparent {
+  background: transparent !important;
+}

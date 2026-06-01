@@ -3,12 +3,14 @@ import { useAddWord } from '../../hooks/useVocabulary';
 
 interface Props {
   onClose: () => void;
+  initialWord?: string;
+  initialMeaning?: string;
 }
 
-export default function AddWordForm({ onClose }: Props) {
-  const [word, setWord] = useState('');
+export default function AddWordForm({ onClose, initialWord = '', initialMeaning = '' }: Props) {
+  const [word, setWord] = useState(initialWord);
   const [phonetics, setPhonetics] = useState('');
-  const [meaning, setMeaning] = useState('');
+  const [meaning, setMeaning] = useState(initialMeaning);
   const [example, setExample] = useState('');
   const [notes, setNotes] = useState('');
   const [tags, setTags] = useState('');

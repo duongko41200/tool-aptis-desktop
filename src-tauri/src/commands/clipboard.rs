@@ -243,9 +243,9 @@ pub async fn show_clipboard_popup(app: tauri::AppHandle) -> Result<(), String> {
     use tauri_plugin_positioner::{WindowExt, Position};
 
     if let Some(window) = app.get_webview_window("clipboard-popup") {
+        let _ = window.move_window(Position::Center);
         window.show().map_err(|e| e.to_string())?;
         window.set_focus().map_err(|e| e.to_string())?;
-        let _ = window.move_window(Position::BottomRight);
     }
     Ok(())
 }

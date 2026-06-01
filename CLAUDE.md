@@ -1,5 +1,5 @@
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at `specs/002-clipboard-copy-popup/plan.md`.
+at `specs/003-anki-vocab-system/plan.md`.
 <!-- SPECKIT END -->

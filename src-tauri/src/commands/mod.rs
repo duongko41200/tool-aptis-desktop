@@ -2,6 +2,7 @@ pub mod speaking;
 pub mod writing;
 pub mod vocabulary;
 pub mod clipboard;
+pub mod anki;
 
 use serde::{Deserialize, Serialize};
 use tauri::State;

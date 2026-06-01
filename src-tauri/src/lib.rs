@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 use std::sync::atomic::AtomicBool;
 use std::path::PathBuf;
 use rusqlite::Connection;
-use tauri::Manager;
+use tauri::{Manager, Emitter};
 
 pub struct AppState {
     pub db: Mutex<Connection>,
@@ -14,10 +14,17 @@ pub struct AppState {
     pub clipboard_monitoring_enabled: Arc<AtomicBool>,
 }
 
+#[derive(Clone, serde::Serialize)]
+struct ClipboardChangedPayload {
+    content: String,
+    char_count: usize,
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_positioner::init())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_sql::Builder::default()
             .add_migrations("sqlite:aptis.db", vec![
@@ -26,7 +33,13 @@ pub fn run() {
                     description: "initial_schema",
                     sql: include_str!("../migrations/001_initial_schema.sql"),
                     kind: tauri_plugin_sql::MigrationKind::Up,
-                }
+                },
+                tauri_plugin_sql::Migration {
+                    version: 2,
+                    description: "anki_schema",
+                    sql: include_str!("../migrations/002_anki_schema.sql"),
+                    kind: tauri_plugin_sql::MigrationKind::Up,
+                },
             ])
             .build())
         .plugin(tauri_plugin_clipboard_manager::init())
@@ -60,9 +73,36 @@ pub fn run() {
             .decorations(false)
             .skip_taskbar(true)
             .visible(false)
-            .inner_size(360.0, 280.0)
+            .inner_size(380.0, 440.0)
             .resizable(false)
+            .shadow(true)
             .build()?;
+
+            // Register Ctrl+K global shortcut
+            let app_handle_shortcut = app.handle().clone();
+            use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
+            let _ = app.handle().global_shortcut().on_shortcut("Ctrl+K", move |_app, _shortcut, event| {
+                if event.state() == ShortcutState::Pressed {
+                    let handle = app_handle_shortcut.clone();
+                    std::thread::spawn(move || {
+                        // Simulate Ctrl+C to copy selected text
+                        simulate_copy();
+                        std::thread::sleep(std::time::Duration::from_millis(200));
+
+                        // Read clipboard
+                        if let Ok(mut cb) = arboard::Clipboard::new() {
+                            if let Ok(text) = cb.get_text() {
+                                if text.len() >= 10 {
+                                    let _ = handle.emit("clipboard:changed", ClipboardChangedPayload {
+                                        char_count: text.len(),
+                                        content: text,
+                                    });
+                                }
+                            }
+                        }
+                    });
+                }
+            });
 
             let app_handle = app.handle().clone();
             services::clipboard_watcher::start_watcher(app_handle, clipboard_flag);
@@ -94,7 +134,29 @@ pub fn run() {
             commands::clipboard::get_clipboard_status,
             commands::clipboard::show_clipboard_popup,
             commands::clipboard::hide_clipboard_popup,
+            commands::anki::get_decks,
+            commands::anki::create_deck,
+            commands::anki::delete_deck,
+            commands::anki::create_note,
+            commands::anki::update_note,
+            commands::anki::delete_note,
+            commands::anki::get_notes_for_deck,
+            commands::anki::get_due_cards_for_deck,
+            commands::anki::submit_card_rating,
+            commands::anki::bury_card,
+            commands::anki::suspend_card,
+            commands::anki::flag_card,
+            commands::anki::create_note_from_clipboard,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+fn simulate_copy() {
+    use enigo::{Enigo, Key, Keyboard, Settings, Direction};
+    if let Ok(mut enigo) = Enigo::new(&Settings::default()) {
+        let _ = enigo.key(Key::Control, Direction::Press);
+        let _ = enigo.key(Key::Unicode('c'), Direction::Click);
+        let _ = enigo.key(Key::Control, Direction::Release);
+    }
 }

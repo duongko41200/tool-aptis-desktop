@@ -8,7 +8,7 @@ pub fn open_connection(db_path: &Path) -> Result<Connection> {
 }
 
 pub fn run_migrations(conn: &Connection) -> Result<()> {
-    let schema = include_str!("../../migrations/001_initial_schema.sql");
-    conn.execute_batch(schema)?;
+    conn.execute_batch(include_str!("../../migrations/001_initial_schema.sql"))?;
+    conn.execute_batch(include_str!("../../migrations/002_anki_schema.sql"))?;
     Ok(())
 }

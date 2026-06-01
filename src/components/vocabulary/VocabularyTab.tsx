@@ -1,95 +1,132 @@
-import { useState } from 'react';
-import { useDueCards, useVocabularyList } from '../../hooks/useVocabulary';
-import AddWordForm from './AddWordForm';
-import ReviewSession from './ReviewSession';
+import { useState, useEffect } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import { setPendingVocabWord } from '../../store/appSlice';
+import type { RootState } from '../../store';
+import { useDecks, useDueCards } from '../../hooks/useAnki';
+import DeckList from './DeckList';
+import DeckStudyView from './DeckStudyView';
+import NoteEditor from './NoteEditor';
+import CardReviewer from './CardReviewer';
+import SessionSummary from './SessionSummary';
+type View = 'study' | 'review' | 'summary' | 'add-note';
 
 export default function VocabularyTab() {
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [reviewing, setReviewing] = useState(false);
-  const [search, setSearch] = useState('');
-  const { data: dueData } = useDueCards();
-  const { data: allWords } = useVocabularyList();
+  const dispatch = useDispatch();
+  const pendingWord = useSelector((s: RootState) => s.app.pendingVocabWord);
 
-  const dueCount = dueData?.total_due ?? 0;
-  const filteredWords = allWords?.filter((w) =>
-    w.word.toLowerCase().includes(search.toLowerCase()) ||
-    w.meaning.toLowerCase().includes(search.toLowerCase())
-  ) ?? [];
+  const [selectedDeckId, setSelectedDeckId] = useState<number | null>(null);
+  const [view, setView] = useState<View>('study');
+  const [reviewSnapshot, setReviewSnapshot] = useState<ReturnType<typeof useDueCards>['data']>();
+  const [sessionStats, setSessionStats] = useState({ again: 0, hard: 0, good: 0, easy: 0 });
 
-  if (reviewing && dueData && dueData.cards.length > 0) {
+  const { data: decks = [] } = useDecks();
+  const { data: dueData } = useDueCards(selectedDeckId, true);
+
+  // Select first deck automatically
+  useEffect(() => {
+    if (decks.length > 0 && selectedDeckId === null) {
+      setSelectedDeckId(decks[0].id);
+    }
+  }, [decks, selectedDeckId]);
+
+  // Handle pending word from clipboard
+  useEffect(() => {
+    if (pendingWord && selectedDeckId !== null) {
+      setView('add-note');
+    }
+  }, [pendingWord, selectedDeckId]);
+
+  const selectedDeck = decks.find(d => d.id === selectedDeckId) ?? null;
+
+  const handleStartReview = () => {
+    setReviewSnapshot(dueData);
+    setView('review');
+  };
+
+  const handleReviewFinish = (stats: { again: number; hard: number; good: number; easy: number }) => {
+    setSessionStats(stats);
+    setView('summary');
+  };
+
+  const handleBackToStudy = () => {
+    setView('study');
+    setReviewSnapshot(undefined);
+    dispatch(setPendingVocabWord(null));
+  };
+
+  // ── Views ──
+  if (view === 'review' && reviewSnapshot && reviewSnapshot.cards.length > 0) {
+    return <CardReviewer cards={reviewSnapshot.cards} onFinish={handleReviewFinish} />;
+  }
+
+  if (view === 'summary') {
+    return <SessionSummary stats={sessionStats} onBack={handleBackToStudy} />;
+  }
+
+  if (view === 'add-note' && selectedDeck) {
     return (
-      <ReviewSession
-        cards={dueData.cards}
-        totalDue={dueData.total_due}
-        onFinish={() => setReviewing(false)}
-      />
+      <div style={{ padding: 24, overflowY: 'auto', height: '100%', background: '#f8fafc' }}>
+        <button onClick={handleBackToStudy} style={{ background: 'none', border: 'none', color: '#7c3aed', fontWeight: 700, fontSize: 13, cursor: 'pointer', marginBottom: 16 }}>← Back</button>
+        {pendingWord && (
+          <div style={{ marginBottom: 16, padding: '12px 16px', background: '#faf5ff', border: '2px solid #c4b5fd', borderRadius: 14, color: '#5b21b6', fontSize: 13 }}>
+            <strong>📋 From Clipboard</strong>
+            {pendingWord.sourceContent && <p style={{ margin: '4px 0 0', opacity: 0.7, fontSize: 12 }}>{pendingWord.sourceContent.slice(0, 80)}…</p>}
+          </div>
+        )}
+        <div style={{ background: '#fff', borderRadius: 20, border: '2px solid #e2e8f0', padding: 24, maxWidth: 520 }}>
+          <NoteEditor
+            deckId={selectedDeck.id}
+            initialFront={pendingWord?.word ?? ''}
+            initialBack={pendingWord?.meaning ?? ''}
+            onClose={handleBackToStudy}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // ── No decks onboarding ──
+  if (decks.length === 0) {
+    return (
+      <div style={{ display: 'flex', height: '100%' }}>
+        <div style={{ width: 220 }}>
+          <DeckList selectedDeckId={null} onSelect={id => { setSelectedDeckId(id); }} />
+        </div>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, background: '#f8fafc', padding: 32 }}>
+          <div style={{ fontSize: 60 }}>📚</div>
+          <h2 style={{ fontSize: 22, fontWeight: 900, color: '#0f172a', margin: 0 }}>Create your first Deck</h2>
+          <p style={{ color: '#64748b', textAlign: 'center', maxWidth: 320 }}>
+            Decks organize your flashcards. Try "English" or "Japanese::N5".<br />
+            Then add Notes → cards are generated automatically.
+          </p>
+        </div>
+      </div>
     );
   }
 
   return (
-    <div className="flex h-full">
-      <aside className="w-72 border-r bg-white flex flex-col">
-        <div className="p-3 border-b">
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search words..."
-            className="w-full border rounded px-3 py-1.5 text-sm"
-          />
-        </div>
-        <div className="flex-1 overflow-y-auto">
-          {filteredWords.map((w) => (
-            <div key={w.id} className="px-3 py-2 border-b hover:bg-gray-50 cursor-pointer">
-              <div className="font-medium text-sm">{w.word}</div>
-              <div className="text-xs text-gray-500 truncate">{w.meaning}</div>
-              {w.tags && (
-                <div className="flex gap-1 mt-1 flex-wrap">
-                  {w.tags.split(',').map((t, i) => (
-                    <span key={i} className="bg-gray-100 text-gray-600 text-xs px-1.5 rounded">{t.trim()}</span>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
-          {filteredWords.length === 0 && (
-            <p className="p-4 text-center text-sm text-gray-400">No words yet</p>
-          )}
-        </div>
-        <div className="p-3 border-t">
-          <button
-            onClick={() => setShowAddForm(true)}
-            className="w-full bg-blue-600 text-white py-2 rounded-lg text-sm hover:bg-blue-700"
-          >
-            + Add Word
-          </button>
-        </div>
-      </aside>
+    <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
+      {/* Sidebar */}
+      <div style={{ width: 220, flexShrink: 0 }}>
+        <DeckList
+          selectedDeckId={selectedDeckId}
+          onSelect={id => { setSelectedDeckId(id); setView('study'); }}
+        />
+      </div>
 
-      <main className="flex-1 flex flex-col items-center justify-center p-8">
-        {showAddForm ? (
-          <div className="w-full max-w-md bg-white border rounded-lg p-6">
-            <AddWordForm onClose={() => setShowAddForm(false)} />
-          </div>
+      {/* Main content */}
+      <div style={{ flex: 1, overflow: 'hidden' }}>
+        {selectedDeck ? (
+          <DeckStudyView
+            deck={selectedDeck}
+            onStartReview={handleStartReview}
+          />
         ) : (
-          <div className="text-center space-y-4">
-            <div className="text-6xl">📚</div>
-            <h2 className="text-2xl font-bold">Vocabulary Review</h2>
-            <p className="text-gray-500">{allWords?.length ?? 0} words in library</p>
-            {dueCount > 0 ? (
-              <button
-                onClick={() => setReviewing(true)}
-                className="bg-green-600 text-white px-8 py-3 rounded-xl text-lg font-medium hover:bg-green-700 flex items-center gap-2 mx-auto"
-              >
-                Start Review
-                <span className="bg-white text-green-700 rounded-full px-2 py-0.5 text-sm font-bold">{dueCount}</span>
-              </button>
-            ) : (
-              <div className="text-green-600 font-medium">🎉 All caught up! No cards due.</div>
-            )}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#94a3b8' }}>
+            Select a deck to start studying
           </div>
         )}
-      </main>
+      </div>
     </div>
   );
 }

@@ -117,3 +117,48 @@ export const showClipboardPopup = () =>
 
 export const hideClipboardPopup = () =>
   invoke<void>('hide_clipboard_popup');
+
+// ── Anki Commands ────────────────────────────────────────────────────────────
+import type { Deck, Note, Card, DueCardsResult as AnkiDueResult, RatingResult } from '../types/anki';
+
+export const getDecks = () => invoke<Deck[]>('get_decks');
+
+export const createDeck = (name: string, parentDeckId?: number) =>
+  invoke<Deck>('create_deck', { name, parentDeckId });
+
+export const deleteDeck = (id: number) => invoke<void>('delete_deck', { id });
+
+export const createNote = (params: {
+  deckId: number; templateType: string;
+  front: string; back?: string; example?: string; tags?: string;
+}) => invoke<{ note: Note; cards: Card[] }>('create_note', params);
+
+export const updateNote = (params: {
+  id: number; front?: string; back?: string; example?: string; tags?: string;
+}) => invoke<{ note: Note; cards: Card[] }>('update_note', params);
+
+export const deleteNote = (id: number) => invoke<void>('delete_note', { id });
+
+export const getNotesForDeck = (params: {
+  deckId: number; includeSubdecks: boolean; tagFilter?: string; search?: string;
+}) => invoke<Note[]>('get_notes_for_deck', params);
+
+export const getDueCardsForDeck = (params: {
+  deckId: number; includeSubdecks: boolean;
+}) => invoke<AnkiDueResult>('get_due_cards_for_deck', params);
+
+export const submitCardRating = (cardId: number, rating: string) =>
+  invoke<RatingResult>('submit_card_rating', { cardId, rating });
+
+export const buryCard = (cardId: number) => invoke<void>('bury_card', { cardId });
+
+export const suspendCard = (cardId: number, suspended: boolean) =>
+  invoke<void>('suspend_card', { cardId, suspended });
+
+export const flagCard = (cardId: number, color: string | null) =>
+  invoke<void>('flag_card', { cardId, color });
+
+export const createNoteFromClipboard = (params: {
+  deckId: number; templateType: string; front: string;
+  back?: string; tags?: string;
+}) => invoke<{ note: Note; cards: Card[] }>('create_note_from_clipboard', params);

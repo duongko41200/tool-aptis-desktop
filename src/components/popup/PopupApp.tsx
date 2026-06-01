@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { listen } from '@tauri-apps/api/event';
-import { showClipboardPopup, getClipboardStatus } from '../../services/tauriCommands';
+import { showClipboardPopup } from '../../services/tauriCommands';
 import ClipboardPopup from './ClipboardPopup';
-import '../../index.css';
 
 interface ClipboardPayload {
   content: string;
@@ -10,45 +9,41 @@ interface ClipboardPayload {
 }
 
 export default function PopupApp() {
-  const [content, setContent] = useState('');
+  const [content, setContent]     = useState('');
   const [charCount, setCharCount] = useState(0);
-  const [visible, setVisible] = useState(false);
-  const lastContentRef = useRef('');
+  const [visible, setVisible]     = useState(false);
+  const lastRef = useRef('');
 
   useEffect(() => {
-    // Check monitoring status on mount
-    getClipboardStatus().catch(() => {});
+    let unlisten: (() => void) | undefined;
 
-    const unlisten = listen<ClipboardPayload>('clipboard:changed', async (event) => {
-      const { content: newContent, char_count } = event.payload;
-
-      // Dedup: skip if same content
-      if (newContent === lastContentRef.current) return;
-      lastContentRef.current = newContent;
-
-      setContent(newContent);
+    listen<ClipboardPayload>('clipboard:changed', async (event) => {
+      const { content: text, char_count } = event.payload;
+      if (text === lastRef.current) return;   // dedup
+      lastRef.current = text;
+      setContent(text);
       setCharCount(char_count);
       setVisible(true);
       await showClipboardPopup();
-    });
+    }).then(fn => { unlisten = fn; });
 
-    return () => {
-      unlisten.then((fn) => fn());
-    };
+    return () => { unlisten?.(); };
   }, []);
 
   const handleClose = () => {
     setVisible(false);
-    lastContentRef.current = '';
+    lastRef.current = '';
   };
 
-  if (!visible) return null;
+  if (!visible) {
+    return (
+      <div className="w-full h-full flex items-center justify-center" style={{ background: 'transparent' }} />
+    );
+  }
 
   return (
-    <ClipboardPopup
-      content={content}
-      charCount={charCount}
-      onClose={handleClose}
-    />
+    <div className="w-full h-full" style={{ background: 'transparent' }}>
+      <ClipboardPopup content={content} charCount={charCount} onClose={handleClose} />
+    </div>
   );
 }
