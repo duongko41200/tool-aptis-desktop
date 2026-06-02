@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>EngDaily — Lo-fi Study</title>
+<link rel="stylesheet" href="EngDaily/styles.css" />
+<style>
+  /* Warm lofi-room fallback behind the user's background image-slot */
+  #bg-layer {
+    background:
+      radial-gradient(80% 60% at 72% 26%, rgba(255,224,150,0.55), rgba(255,224,150,0) 60%),
+      radial-gradient(70% 70% at 18% 80%, rgba(120,170,130,0.4), rgba(120,170,130,0) 55%),
+      linear-gradient(160deg, #5b6b4a 0%, #7d8a63 30%, #a99f73 60%, #6e6450 100%);
+  }
+  /* keep the empty drop-slot subtle and inviting, not a harsh box */
+  #bg-layer image-slot { --slot-bg: transparent; }
+</style>
+<template id="__bundler_thumbnail">
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+    <rect width="100" height="100" rx="20" fill="#5b6b4a"/>
+    <circle cx="68" cy="34" r="16" fill="#ffe096" opacity="0.7"/>
+    <rect x="30" y="42" width="40" height="14" rx="7" fill="#d9e89d"/>
+    <path d="M34 64h32M34 72h22" stroke="#ffffff" stroke-width="3" stroke-linecap="round" opacity="0.85"/>
+  </svg>
+</template>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script src="EngDaily/image-slot.js"></script>
+<script type="text/babel" src="EngDaily/tweaks-panel.jsx"></script>
+<script type="text/babel" src="EngDaily/lib.jsx"></script>
+<script type="text/babel" src="EngDaily/welcome.jsx"></script>
+<script type="text/babel" src="EngDaily/dashboard.jsx"></script>
+<script type="text/babel" src="EngDaily/vocab.jsx"></script>
+<script type="text/babel" src="EngDaily/speaking.jsx"></script>
+<script type="text/babel" src="EngDaily/writing.jsx"></script>
+<script type="text/babel" src="EngDaily/app.jsx"></script>
+</body>
+</html>

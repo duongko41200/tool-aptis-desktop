@@ -1,0 +1,20 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  html,body{margin:0}
+  body{font-family:var(--ed-font);background:#fff;padding:22px}
+  .grid{display:flex;gap:14px;flex-wrap:wrap}
+  .sw{width:150px;border-radius:var(--ed-r-md);overflow:hidden;border:1px solid var(--ed-glass-edge)}
+  .chip{height:74px;display:flex;align-items:center;justify-content:center;color:#fff;font:700 13px var(--ed-font)}
+  .meta{padding:9px 11px}
+  .n{font:700 13px var(--ed-font);color:var(--ed-ink)}
+  .h{font:500 11px var(--ed-font-mono);color:var(--ed-ink-3)}
+</style></head>
+<body>
+<div class="grid">
+  <div class="sw"><div class="chip" style="background:#6fae5a">good</div><div class="meta"><div class="n">success</div><div class="h">#6fae5a</div></div></div>
+  <div class="sw"><div class="chip" style="background:#e0a93b">warn</div><div class="meta"><div class="n">warning / hint</div><div class="h">#e0a93b</div></div></div>
+  <div class="sw"><div class="chip" style="background:#d98a6a">bad</div><div class="meta"><div class="n">error (muted)</div><div class="h">#d98a6a</div></div></div>
+  <div class="sw"><div class="chip" style="background:#6aa6c4">info</div><div class="meta"><div class="n">info</div><div class="h">#6aa6c4</div></div></div>
+</div>
+</body></html>

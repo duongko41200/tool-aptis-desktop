@@ -1,0 +1,147 @@
+/* ============================================================
+   EngDaily — Lo-fi Study · Design Tokens
+   The single source of truth for color, type, spacing, radius,
+   shadow and motion. Import this file first, then build.
+
+   Namespace: every token is prefixed --ed-  (EngDaily).
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,500&family=Nunito:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+:root {
+  /* ---------------------------------------------------------
+     COLOR — accent (lime). The one emphasis color.
+     --------------------------------------------------------- */
+  --ed-accent:        #d9e89d;  /* base lime — pills, fills, logo */
+  --ed-accent-strong: #c5e063;  /* hover / pressed */
+  --ed-accent-deep:   #aacb4f;  /* progress, icons, fine detail on light */
+  --ed-accent-ink:    #2c3a16;  /* dark text that sits ON the accent */
+
+  /* ---------------------------------------------------------
+     COLOR — ink (text on light glass)
+     --------------------------------------------------------- */
+  --ed-ink:    #232a1e;  /* primary text */
+  --ed-ink-2:  #4b5443;  /* secondary */
+  --ed-ink-3:  #79836d;  /* muted / captions */
+
+  /* text over imagery or dark glass */
+  --ed-on-dark:   #ffffff;
+  --ed-on-dark-2: rgba(255,255,255,0.74);
+
+  /* ---------------------------------------------------------
+     COLOR — glass surfaces (light/white frosted = default)
+     Built for readability: dark ink reads cleanly on these.
+     --------------------------------------------------------- */
+  --ed-glass-alpha: 0.74;
+  --ed-glass:      rgba(255,255,255, 0.74);  /* primary panel */
+  --ed-glass-2:    rgba(255,255,255, 0.58);  /* nested / secondary panel */
+  --ed-glass-line: rgba(255,255,255,0.65);   /* inner highlight border */
+  --ed-glass-edge: rgba(40,55,30,0.08);      /* hairline divider on light */
+
+  /* dark glass — top bar, utility rail, lofi player chrome */
+  --ed-darkglass:      rgba(28,36,24,0.42);
+  --ed-darkglass-2:    rgba(28,36,24,0.62);  /* hover */
+  --ed-darkglass-line: rgba(255,255,255,0.14);
+
+  /* overlay tint laid over the background image (0–0.7 typical) */
+  --ed-overlay: 0.34;
+  --ed-bg-base: #11160c;  /* deepest letterbox / behind everything */
+
+  /* ---------------------------------------------------------
+     COLOR — status / semantic
+     --------------------------------------------------------- */
+  --ed-good: #6fae5a;  /* success, correct answer */
+  --ed-warn: #e0a93b;  /* hint, gentle correction */
+  --ed-bad:  #d98a6a;  /* error, logout (muted terracotta — never harsh red) */
+  --ed-info: #6aa6c4;
+
+  /* ---------------------------------------------------------
+     TYPOGRAPHY
+     --------------------------------------------------------- */
+  --ed-font:      'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+  --ed-font-alt:  'Nunito', ui-sans-serif, system-ui, sans-serif;       /* softer alt */
+  --ed-font-alt2: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;/* geometric alt */
+  --ed-font-mono: 'JetBrains Mono', ui-monospace, monospace;            /* IPA · timers · figures */
+
+  /* type scale (size / line-height / weight) */
+  --ed-fs-display: 40px;  --ed-lh-display: 1.12;  /* hero H1 (clamp in use) */
+  --ed-fs-h1:      30px;  --ed-lh-h1:      1.15;  /* screen title */
+  --ed-fs-h2:      22px;  --ed-lh-h2:      1.2;   /* card / section title */
+  --ed-fs-h3:      19px;  --ed-lh-h3:      1.25;  /* sub-card title */
+  --ed-fs-body:    15px;  --ed-lh-body:    1.55;  /* default body */
+  --ed-fs-body-sm: 13.5px;--ed-lh-body-sm: 1.5;   /* dense body / list */
+  --ed-fs-cap:     12px;  --ed-lh-cap:     1.4;   /* caption */
+  --ed-fs-label:   11px;                          /* UPPERCASE eyebrow */
+
+  --ed-wt-regular: 400;
+  --ed-wt-medium:  500;
+  --ed-wt-semi:    600;
+  --ed-wt-bold:    700;
+  --ed-wt-black:   800;  /* display + emphatic numbers only */
+
+  --ed-track-label: 0.12em;   /* letter-spacing for uppercase eyebrows */
+  --ed-track-tight: -0.025em; /* display headings */
+
+  /* ---------------------------------------------------------
+     SPACING — 4px base rhythm
+     --------------------------------------------------------- */
+  --ed-space-1:  4px;
+  --ed-space-2:  8px;
+  --ed-space-3:  11px;  /* widget gap */
+  --ed-space-4:  14px;
+  --ed-space-5:  16px;  /* grid gap */
+  --ed-space-6:  20px;
+  --ed-space-7:  22px;  /* panel padding (sm) */
+  --ed-space-8:  26px;  /* panel padding (lg) */
+  --ed-space-10: 32px;
+
+  /* ---------------------------------------------------------
+     RADIUS
+     --------------------------------------------------------- */
+  --ed-r-sm:   12px;   /* chips inside panels, list rows, small tiles */
+  --ed-r-md:   18px;   /* secondary panels, buttons (rounded), inputs */
+  --ed-r-lg:   26px;   /* primary glass cards */
+  --ed-r-xl:   34px;   /* hero panels, modals, big CTA */
+  --ed-r-pill: 9999px; /* pills, chips, icon buttons, nav */
+
+  /* ---------------------------------------------------------
+     SHADOW / ELEVATION  (pick ONE recipe per surface)
+     --------------------------------------------------------- */
+  --ed-sh-sm:   0 1px 2px rgba(20,28,15,0.10), 0 2px 8px rgba(20,28,15,0.06);
+  --ed-sh-md:   0 8px 24px rgba(20,28,15,0.16), 0 2px 6px rgba(20,28,15,0.08);
+  --ed-sh-lg:   0 24px 60px rgba(15,22,10,0.34), 0 6px 18px rgba(15,22,10,0.18);
+  --ed-sh-glow: 0 6px 20px rgba(170,203,79,0.40);  /* accent buttons */
+  --ed-sh-inset: inset 0 1px 0 rgba(255,255,255,0.55); /* glass top highlight */
+
+  /* ---------------------------------------------------------
+     BLUR
+     --------------------------------------------------------- */
+  --ed-blur-glass: 18px;  /* light glass panels */
+  --ed-blur-chrome: 14px; /* dark glass bars/rail */
+
+  /* ---------------------------------------------------------
+     MOTION
+     --------------------------------------------------------- */
+  --ed-ease:      cubic-bezier(0.4, 0, 0.2, 1);
+  --ed-dur-fast:  150ms;  /* control feedback: hover/press */
+  --ed-dur-base:  220ms;  /* card hover lift, panel toggles */
+  --ed-dur-slow:  600ms;  /* content entrance (transform-only) */
+  --ed-dur-xslow: 900ms;  /* progress ring fill */
+
+  /* ---------------------------------------------------------
+     SHADOW TEXT — for white type sitting on imagery
+     --------------------------------------------------------- */
+  --ed-textshadow: 0 2px 14px rgba(8,12,4,0.45);
+}
+
+/* ============================================================
+   SEMANTIC TYPE CLASSES (optional convenience layer)
+   ============================================================ */
+.ed-display { font: var(--ed-wt-black) var(--ed-fs-display)/var(--ed-lh-display) var(--ed-font); letter-spacing: var(--ed-track-tight); }
+.ed-h1      { font: var(--ed-wt-black) var(--ed-fs-h1)/var(--ed-lh-h1) var(--ed-font); letter-spacing: var(--ed-track-tight); }
+.ed-h2      { font: var(--ed-wt-black) var(--ed-fs-h2)/var(--ed-lh-h2) var(--ed-font); letter-spacing: -0.02em; }
+.ed-h3      { font: var(--ed-wt-black) var(--ed-fs-h3)/var(--ed-lh-h3) var(--ed-font); letter-spacing: -0.02em; }
+.ed-body    { font: var(--ed-wt-medium) var(--ed-fs-body)/var(--ed-lh-body) var(--ed-font); }
+.ed-cap     { font: var(--ed-wt-semi) var(--ed-fs-cap)/var(--ed-lh-cap) var(--ed-font); color: var(--ed-ink-3); }
+.ed-label   { font: var(--ed-wt-black) var(--ed-fs-label) var(--ed-font); letter-spacing: var(--ed-track-label); text-transform: uppercase; color: var(--ed-ink-3); }
+.ed-mono    { font-family: var(--ed-font-mono); }

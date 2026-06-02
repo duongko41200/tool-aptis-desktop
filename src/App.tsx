@@ -1,76 +1,107 @@
 import { useEffect, useRef } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
+import { useDispatch } from 'react-redux';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { setOnlineStatus } from './store/appSlice';
-import type { RootState } from './store';
-import TabBar from './components/shared/TabBar';
-import ShadowingTab from './components/speaking/ShadowingTab';
-import TeleprompterTab from './components/speaking/TeleprompterTab';
-import WritingTab from './components/writing/WritingTab';
-import VocabularyTab from './components/vocabulary/VocabularyTab';
-import ClipboardTab from './components/clipboard/ClipboardTab';
-import SettingsScreen from './components/shared/SettingsScreen';
-import ErrorBoundary from './components/shared/ErrorBoundary';
 
-function Particles() {
-  const containerRef = useRef<HTMLDivElement>(null);
+import WelcomePage           from './pages/WelcomePage';
+import DashboardPage         from './pages/DashboardPage';
+import SpeakingPage          from './pages/SpeakingPage';
+import WritingPage           from './pages/WritingPage';
+import WritingFeedbackPage   from './pages/WritingFeedbackPage';
+import ToolsPage             from './pages/ToolsPage';
 
+/* ── Rain particle effect ───────────────────────────── */
+function Rain() {
+  const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    const count = 30;
-    const bubbles: HTMLDivElement[] = [];
-    for (let i = 0; i < count; i++) {
-      const el = document.createElement('div');
-      el.className = 'bubble';
-      const size = 6 + Math.floor(i * 0.47 * 14);
-      el.style.cssText = `
-        width:${size}px; height:${size}px;
-        left:${(i * 37 + 11) % 100}%;
-        bottom:${(i * 23 + 5) % 35}%;
-        animation-duration:${5 + (i % 5)}s;
-        animation-delay:${(i * 0.4) % 5}s;
-      `;
-      container.appendChild(el);
-      bubbles.push(el);
-    }
-    return () => { bubbles.forEach(b => b.remove()); };
-  }, []);
+    const c = ref.current;
+    if (!c) return;
+    const count = 46;
+    type Drop = { el: HTMLDivElement; x: number; y: number; vy: number; vx: number };
+    let drops: Drop[] = [];
 
-  return <div className="lofi-particles" ref={containerRef} />;
+    const init = () => {
+      drops.forEach(d => d.el.remove());
+      drops = Array.from({ length: count }, () => {
+        const el = document.createElement('div');
+        const w = 1.2 + Math.random() * 0.8;
+        const h = 6 + Math.random() * 12;
+        el.className = 'particle';
+        const x = Math.random() * 100;
+        const y = Math.random() * 100;
+        el.style.cssText = `width:${w}px;height:${h}px;left:${x}%;top:${y}%;opacity:${0.15 + Math.random() * 0.35};`;
+        c.appendChild(el);
+        return { el, x, y, vy: 1.4 + Math.random() * 2.4, vx: 0.15 + Math.random() * 0.3 };
+      });
+    };
+    init();
+
+    let raf: number;
+    const tick = () => {
+      drops.forEach(d => {
+        d.x += d.vx * 0.12;
+        d.y += d.vy * 0.22;
+        if (d.y > 102) { d.y = -4; d.x = Math.random() * 100; }
+        if (d.x > 102)   d.x = -2;
+        d.el.style.left = d.x + '%';
+        d.el.style.top  = d.y + '%';
+      });
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      drops.forEach(d => d.el.remove());
+    };
+  }, []);
+  return <div id="rain-layer" ref={ref} />;
 }
 
-export default function App() {
+/* ── App shell with routing ─────────────────────────── */
+function AppShell() {
   const dispatch = useDispatch();
-  const activeTab = useSelector((state: RootState) => state.app.activeTab);
 
   useEffect(() => {
-    const handleOnline = () => dispatch(setOnlineStatus(true));
-    const handleOffline = () => dispatch(setOnlineStatus(false));
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
+    const up   = () => dispatch(setOnlineStatus(true));
+    const down = () => dispatch(setOnlineStatus(false));
+    window.addEventListener('online',  up);
+    window.addEventListener('offline', down);
     return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('online',  up);
+      window.removeEventListener('offline', down);
     };
   }, [dispatch]);
 
   return (
-    <div className="lofi-app">
+    <div className="lofi-stage">
+      {/* Background layers */}
       <div className="lofi-bg" />
-      <Particles />
-      <div className="lofi-content">
-        <TabBar />
-        <main className="flex-1 overflow-auto">
-          <ErrorBoundary>
-            {activeTab === 'shadowing' && <ShadowingTab />}
-            {activeTab === 'teleprompter' && <TeleprompterTab />}
-            {activeTab === 'writing' && <WritingTab />}
-            {activeTab === 'vocabulary' && <VocabularyTab />}
-            {activeTab === 'clipboard' && <ClipboardTab />}
-            {activeTab === 'settings' && <SettingsScreen />}
-          </ErrorBoundary>
-        </main>
+      <div className="lofi-overlay" />
+      <Rain />
+
+      {/* Routed screens */}
+      <div className="lofi-app-root">
+        <Routes>
+          <Route path="/"                  element={<WelcomePage />} />
+          <Route path="/dashboard"         element={<DashboardPage />} />
+          <Route path="/speaking"          element={<SpeakingPage />} />
+          <Route path="/writing"           element={<WritingPage />} />
+          <Route path="/writing/feedback"  element={<WritingFeedbackPage />} />
+          <Route path="/vocab"             element={<Navigate to="/tools/vocabulary" replace />} />
+          <Route path="/tools"             element={<Navigate to="/tools/vocabulary" replace />} />
+          <Route path="/tools/:tab"        element={<ToolsPage />} />
+          <Route path="*"                  element={<Navigate to="/" replace />} />
+        </Routes>
       </div>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <AppShell />
+    </BrowserRouter>
   );
 }

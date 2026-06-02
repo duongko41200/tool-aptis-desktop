@@ -1,333 +1,300 @@
-@import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,500&family=JetBrains+Mono:wght@400;500;600&display=swap');
 @import "tailwindcss";
 
-/* ─── Design Tokens ────────────────────────────────── */
+/* ============================================================
+   EngDaily — Lo-fi Study · Design System
+   Refined frosted-glass over warm illustrated room.
+   ============================================================ */
+
 :root {
-  --accent-primary:    #D4F56A;
-  --accent-warm:       #F5C842;
-  --surface-glass:     rgba(255, 255, 255, 0.07);
-  --surface-dark:      rgba(12, 10, 8, 0.78);
-  --text-primary:      #F5F0E8;
-  --text-secondary:    rgba(245, 240, 232, 0.55);
-  --border-glass:      rgba(255, 255, 255, 0.12);
-  --border-dark:       rgba(255, 255, 255, 0.07);
-  --shadow-glow:       0 4px 24px rgba(0, 0, 0, 0.35);
-  --radius-card:       16px;
-  --radius-pill:       9999px;
+  /* accent (lime) */
+  --accent:          #d9e89d;
+  --accent-strong:   #c5e063;
+  --accent-deep:     #aacb4f;
+  --accent-ink:      #2c3a16;
+
+  /* ink / text (for light glass surfaces) */
+  --ink:             #232a1e;
+  --ink-2:           #4b5443;
+  --ink-3:           #79836d;
+  --on-dark:         #ffffff;
+  --on-dark-2:       rgba(255,255,255,0.74);
+
+  /* glass surfaces */
+  --glass-blur:      18px;
+  --glass-alpha:     0.74;
+  --glass:           rgba(255,255,255,0.74);
+  --glass-2:         rgba(255,255,255,0.58);
+  --glass-line:      rgba(255,255,255,0.65);
+  --glass-edge:      rgba(40,55,30,0.08);
+
+  /* dark glass (topbar, rail, player) */
+  --darkglass:       rgba(28,36,24,0.42);
+  --darkglass-2:     rgba(28,36,24,0.62);
+  --darkglass-line:  rgba(255,255,255,0.14);
+
+  /* overlay darkness (on top of bg image/gradient) */
+  --overlay:         0.34;
+
+  /* status */
+  --good:  #6fae5a;
+  --warn:  #e0a93b;
+  --bad:   #d98a6a;
+  --info:  #6aa6c4;
+
+  /* radii */
+  --r-sm:   12px;
+  --r-md:   18px;
+  --r-lg:   26px;
+  --r-xl:   34px;
+  --r-pill: 9999px;
+
+  /* shadows */
+  --sh-sm:   0 1px 2px rgba(20,28,15,0.10), 0 2px 8px rgba(20,28,15,0.06);
+  --sh-md:   0 8px 24px rgba(20,28,15,0.16), 0 2px 6px rgba(20,28,15,0.08);
+  --sh-lg:   0 24px 60px rgba(15,22,10,0.34), 0 6px 18px rgba(15,22,10,0.18);
+  --sh-glow: 0 6px 20px rgba(170,203,79,0.40);
+
+  /* typography */
+  --font:      'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* ─── Global Reset ─────────────────────────────────── */
-*, *::before, *::after {
-  box-sizing: border-box;
-}
-
-html, body, #root {
-  height: 100%;
-  margin: 0;
-  padding: 0;
-}
-
+/* ─── Reset ────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; padding: 0; }
 body {
-  font-family: 'Be Vietnam Pro', 'Inter', sans-serif;
-  background: #0d1117;
-  color: var(--text-primary);
+  font-family: var(--font);
+  color: var(--ink);
+  background: #0e1a0c;
+  overflow: hidden;
   -webkit-font-smoothing: antialiased;
-  overflow: hidden;
+  text-rendering: optimizeLegibility;
 }
+button { font-family: inherit; cursor: pointer; border: none; background: none; }
+input, textarea { font-family: inherit; }
+::selection { background: var(--accent-strong); color: var(--accent-ink); }
 
-/* ─── App Shell ─────────────────────────────────────── */
-.lofi-app {
-  position: relative;
-  width: 100%;
-  height: 100vh;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
+/* ─── App Stage ─────────────────────────────────────────── */
+#root { position: relative; overflow: hidden; }
 
-/* Background gradient (no image dependency) */
-.lofi-bg {
+.lofi-stage {
   position: fixed;
+  inset: 0;
+  overflow: hidden;
+}
+
+/* Background — warm lofi forest/cafe gradient (no image dep) */
+.lofi-bg {
+  position: absolute;
   inset: 0;
   z-index: 0;
   background:
-    radial-gradient(ellipse 80% 60% at 70% 30%, rgba(60, 40, 80, 0.55) 0%, transparent 70%),
-    radial-gradient(ellipse 60% 70% at 10% 80%, rgba(20, 50, 60, 0.45) 0%, transparent 60%),
-    radial-gradient(ellipse 50% 50% at 50% 50%, rgba(30, 25, 45, 0.8) 0%, transparent 100%),
-    linear-gradient(160deg, #0d1117 0%, #1a1424 35%, #0d1b2a 65%, #120d1a 100%);
+    radial-gradient(ellipse 55% 45% at 15% 88%, rgba(200,140,50,0.40) 0%, transparent 60%),
+    radial-gradient(ellipse 45% 55% at 82% 12%, rgba(90,150,110,0.30) 0%, transparent 58%),
+    radial-gradient(ellipse 70% 60% at 50% 50%, rgba(20,40,18,0.55) 0%, transparent 80%),
+    linear-gradient(160deg, #0e1a0c 0%, #1a2c14 35%, #16240e 65%, #0a1208 100%);
 }
 
-/* Noise texture overlay */
+/* Subtle noise texture over bg */
 .lofi-bg::after {
   content: '';
   position: absolute;
   inset: 0;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
-  opacity: 0.3;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.05'/%3E%3C/svg%3E");
+  opacity: 0.35;
   pointer-events: none;
 }
 
-/* ─── Particles ─────────────────────────────────────── */
-.lofi-particles {
-  position: fixed;
+/* Overlay gradient (darkens image/bg for readability) */
+.lofi-overlay {
+  position: absolute;
   inset: 0;
   z-index: 1;
   pointer-events: none;
-  overflow: hidden;
+  background:
+    radial-gradient(120% 90% at 50% 16%, rgba(10,16,6,0) 30%, rgba(10,16,6,0.22) 100%),
+    linear-gradient(180deg,
+      rgba(10,16,6,calc(var(--overlay) * 0.7)) 0%,
+      rgba(10,16,6,calc(var(--overlay) * 0.45)) 45%,
+      rgba(10,16,6,var(--overlay)) 100%);
 }
 
-@keyframes float-bubble {
-  0%   { transform: translateY(0)     translateX(0);    opacity: 0.25; }
-  33%  { transform: translateY(-18px) translateX(5px);  opacity: 0.55; }
-  66%  { transform: translateY(-32px) translateX(-4px); opacity: 0.35; }
-  100% { transform: translateY(-50px) translateX(2px);  opacity: 0.05; }
-}
-
-.bubble {
+/* Rain layer */
+#rain-layer {
   position: absolute;
-  border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  background: rgba(255, 255, 255, 0.03);
-  animation: float-bubble linear infinite;
+  inset: 0;
+  z-index: 2;
   pointer-events: none;
 }
 
-/* ─── Content Layer ─────────────────────────────────── */
-.lofi-content {
-  position: relative;
-  z-index: 2;
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
+.particle {
+  position: absolute;
+  border-radius: 9999px;
+  background: rgba(255,255,255,0.52);
+  pointer-events: none;
 }
 
-/* ─── Glass Card ────────────────────────────────────── */
-.glass-card {
-  background: var(--surface-glass);
-  backdrop-filter: blur(14px) saturate(160%);
-  -webkit-backdrop-filter: blur(14px) saturate(160%);
-  border: 1px solid var(--border-glass);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-glow);
+/* App root above bg layers */
+.lofi-app-root {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
 }
 
-.glass-card-dark {
-  background: var(--surface-dark);
-  backdrop-filter: blur(16px) saturate(140%);
-  -webkit-backdrop-filter: blur(16px) saturate(140%);
-  border: 1px solid var(--border-dark);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-glow);
+/* ─── Glass Surfaces ────────────────────────────────────── */
+.glass {
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.25);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.25);
+  border: 1px solid var(--glass-line);
+  box-shadow: var(--sh-md), inset 0 1px 0 rgba(255,255,255,0.55);
+  border-radius: var(--r-lg);
 }
 
-/* ─── Buttons ───────────────────────────────────────── */
+.glass-2 {
+  background: var(--glass-2);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  backdrop-filter: blur(14px) saturate(1.2);
+  border: 1px solid var(--glass-line);
+  box-shadow: var(--sh-sm), inset 0 1px 0 rgba(255,255,255,0.5);
+  border-radius: var(--r-md);
+}
+
+.darkglass {
+  background: var(--darkglass);
+  -webkit-backdrop-filter: blur(14px) saturate(1.1);
+  backdrop-filter: blur(14px) saturate(1.1);
+  border: 1px solid var(--darkglass-line);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.10);
+  color: var(--on-dark);
+}
+
+/* ─── Buttons ───────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  font-weight: 700;
+  font-size: 15px;
+  line-height: 1;
+  padding: 13px 22px;
+  border-radius: var(--r-pill);
+  transition: all 160ms var(--ease);
+  white-space: nowrap;
+  user-select: none;
+}
+.btn:active { transform: translateY(1px); }
+
 .btn-primary {
-  background: var(--accent-primary);
-  color: #1a1a0f;
-  padding: 10px 28px;
-  border-radius: var(--radius-pill);
-  font-weight: 800;
-  font-size: 0.875rem;
-  border: none;
-  cursor: pointer;
-  box-shadow: 0 4px 18px rgba(212, 245, 106, 0.3);
-  transition: transform 0.15s, box-shadow 0.15s;
-  font-family: inherit;
-  letter-spacing: 0.02em;
+  background: var(--accent);
+  color: var(--accent-ink);
+  box-shadow: var(--sh-glow);
 }
-.btn-primary:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 26px rgba(212, 245, 106, 0.45);
-}
-.btn-primary:active { transform: scale(0.97); }
-.btn-primary:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-  transform: none;
-}
+.btn-primary:hover { background: var(--accent-strong); box-shadow: 0 8px 26px rgba(170,203,79,0.55); }
 
 .btn-ghost {
-  background: transparent;
-  border: 1.5px solid rgba(255, 255, 255, 0.35);
-  color: var(--text-primary);
-  padding: 8px 20px;
-  border-radius: var(--radius-pill);
-  font-weight: 600;
-  font-size: 0.875rem;
-  cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
-  font-family: inherit;
+  background: var(--darkglass);
+  color: var(--on-dark);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--darkglass-line);
 }
-.btn-ghost:hover {
-  border-color: rgba(255, 255, 255, 0.6);
-  background: rgba(255, 255, 255, 0.06);
+.btn-ghost:hover { background: var(--darkglass-2); }
+
+.btn-soft {
+  background: rgba(255,255,255,0.6);
+  color: var(--ink);
+  border: 1px solid var(--glass-edge);
 }
+.btn-soft:hover { background: rgba(255,255,255,0.85); }
 
-.btn-danger {
-  background: rgba(220, 38, 38, 0.8);
-  color: #fff;
-  padding: 6px 16px;
-  border-radius: 10px;
-  border: none;
-  font-weight: 700;
-  font-size: 0.8rem;
-  cursor: pointer;
-  transition: background 0.15s;
-  font-family: inherit;
-}
-.btn-danger:hover { background: rgba(220, 38, 38, 1); }
+.btn-sm  { padding: 9px 15px; font-size: 13px; }
+.btn-lg  { padding: 18px 34px; font-size: 18px; }
 
-.btn-muted {
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid var(--border-glass);
-  color: var(--text-secondary);
-  padding: 6px 16px;
-  border-radius: 10px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s;
-  font-family: inherit;
-}
-.btn-muted:hover { background: rgba(255, 255, 255, 0.13); color: var(--text-primary); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none !important; }
 
-/* ─── Badge ─────────────────────────────────────────── */
-.badge-pill {
-  background: rgba(255, 255, 255, 0.12);
-  border-radius: var(--radius-pill);
-  padding: 3px 10px;
-  font-size: 0.7rem;
-  color: var(--text-primary);
-  font-weight: 700;
-  letter-spacing: 0.05em;
-}
-
-/* ─── Form Inputs ───────────────────────────────────── */
-.lofi-input {
-  background: rgba(255, 255, 255, 0.07);
-  border: 1px solid var(--border-glass);
-  border-radius: 10px;
-  padding: 8px 12px;
-  color: var(--text-primary);
-  font-size: 0.875rem;
-  font-family: inherit;
-  outline: none;
-  transition: border-color 0.15s;
-  width: 100%;
-}
-.lofi-input::placeholder { color: var(--text-secondary); }
-.lofi-input:focus { border-color: rgba(212, 245, 106, 0.5); }
-
-.lofi-select {
-  background: rgba(255, 255, 255, 0.07);
-  border: 1px solid var(--border-glass);
-  border-radius: 10px;
-  padding: 8px 12px;
-  color: var(--text-primary);
-  font-size: 0.875rem;
-  font-family: inherit;
-  outline: none;
-  width: 100%;
-  cursor: pointer;
-}
-.lofi-select option { background: #1a1424; color: var(--text-primary); }
-
-/* ─── Section Label ─────────────────────────────────── */
-.label-upper {
-  font-size: 0.65rem;
-  font-weight: 900;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
-  color: var(--text-secondary);
-}
-
-/* ─── Scrollbar ─────────────────────────────────────── */
-::-webkit-scrollbar { width: 5px; height: 5px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 99px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.28); }
-
-/* ─── TabBar ────────────────────────────────────────── */
-.lofi-tabbar {
-  position: relative;
-  z-index: 10;
-  background: rgba(10, 8, 14, 0.92);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-bottom: 1px solid var(--border-dark);
-  display: flex;
-  align-items: stretch;
-  padding: 0 4px;
+/* icon button */
+.iconbtn {
+  width: 42px;
+  height: 42px;
+  border-radius: var(--r-pill);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--darkglass);
+  color: var(--on-dark);
+  border: 1px solid var(--darkglass-line);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  transition: all 160ms var(--ease);
   flex-shrink: 0;
 }
+.iconbtn:hover { background: var(--darkglass-2); transform: translateY(-1px); }
 
-.lofi-tab {
-  display: flex;
+/* ─── Chips ─────────────────────────────────────────────── */
+.chip {
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 12px 16px;
-  font-size: 0.8rem;
+  gap: 7px;
+  font-size: 13px;
   font-weight: 600;
-  color: var(--text-secondary);
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  transition: color 0.15s;
-  position: relative;
-  font-family: inherit;
-  white-space: nowrap;
+  color: var(--ink-2);
+  padding: 7px 13px;
+  border-radius: var(--r-pill);
+  background: rgba(255,255,255,0.55);
+  border: 1px solid var(--glass-edge);
+  transition: all 140ms var(--ease);
 }
-.lofi-tab:hover { color: var(--text-primary); }
+.chip-accent { background: rgba(217,232,157,0.5); color: var(--accent-ink); border-color: rgba(170,203,79,0.4); }
+.chip-dark   { background: var(--darkglass); color: var(--on-dark); border-color: var(--darkglass-line); }
 
-.lofi-tab.active {
-  color: var(--accent-primary);
+/* ─── Typography helpers ────────────────────────────────── */
+.eyebrow    { font-size: 11px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; }
+.label-cap  { font-size: 11px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-3); }
+.text-shadow { text-shadow: 0 2px 14px rgba(8,12,4,0.45); }
+
+/* ─── Progress bar ──────────────────────────────────────── */
+.bar { height: 7px; border-radius: 9999px; background: rgba(40,55,30,0.12); overflow: hidden; }
+.bar > i { display: block; height: 100%; background: var(--accent-deep); border-radius: 9999px; transition: width 600ms var(--ease); }
+
+.divider { height: 1px; background: var(--glass-edge); border: 0; }
+
+/* ─── Scrollbar ─────────────────────────────────────────── */
+.scroll::-webkit-scrollbar { width: 9px; height: 9px; }
+.scroll::-webkit-scrollbar-thumb { background: rgba(40,55,30,0.18); border-radius: 9999px; border: 2px solid transparent; background-clip: padding-box; }
+.scroll::-webkit-scrollbar-thumb:hover { background: rgba(40,55,30,0.34); background-clip: padding-box; }
+.scroll::-webkit-scrollbar-track { background: transparent; }
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-thumb { background: rgba(40,55,30,0.18); border-radius: 9999px; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* ─── Animations ────────────────────────────────────────── */
+.screen { position: absolute; inset: 0; opacity: 1; animation: screen-in 520ms var(--ease) both; }
+@keyframes screen-in { from { transform: translateY(10px) scale(0.994); } to { transform: none; } }
+
+.rise { opacity: 1; animation: rise 600ms var(--ease) both; }
+@keyframes rise { from { transform: translateY(14px); } to { transform: none; } }
+
+.card-flip { animation: card-in 300ms var(--ease) both; }
+@keyframes card-in { from { transform: scale(0.975); } to { transform: none; } }
+
+@keyframes pulse-soft { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.025); } }
+.pulse-soft { animation: pulse-soft 3.2s ease-in-out infinite; }
+
+@keyframes mic-ring {
+  0%   { transform: scale(1);   opacity: 0.6; }
+  100% { transform: scale(1.7); opacity: 0; }
 }
-.lofi-tab.active::after {
+.mic-active-ring::before {
   content: '';
   position: absolute;
-  bottom: 0; left: 8px; right: 8px;
-  height: 2px;
-  background: var(--accent-primary);
-  border-radius: 2px 2px 0 0;
-  box-shadow: 0 0 8px rgba(212, 245, 106, 0.5);
-}
-
-/* ─── Tab Content Pane ──────────────────────────────── */
-.lofi-pane {
-  flex: 1;
-  overflow: auto;
-  padding: 16px;
-}
-
-/* ─── Stat Badge Colors ─────────────────────────────── */
-.stat-new     { color: #60a5fa; }
-.stat-learn   { color: #fb923c; }
-.stat-review  { color: #4ade80; }
-
-/* ─── Toggle Switch ─────────────────────────────────── */
-.lofi-toggle {
-  width: 40px; height: 22px;
-  border-radius: 99px;
-  position: relative;
-  cursor: pointer;
-  transition: background 0.2s;
-  flex-shrink: 0;
-}
-.lofi-toggle.on  { background: var(--accent-primary); }
-.lofi-toggle.off { background: rgba(255,255,255,0.15); }
-.lofi-toggle-thumb {
-  position: absolute;
-  top: 3px;
-  width: 16px; height: 16px;
-  background: white;
+  inset: -8px;
   border-radius: 50%;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.3);
-  transition: transform 0.2s;
-}
-.lofi-toggle.on  .lofi-toggle-thumb { transform: translateX(20px); }
-.lofi-toggle.off .lofi-toggle-thumb { transform: translateX(3px); }
-
-/* ─── Popup (transparent host) ─────────────────────── */
-.popup-transparent {
-  background: transparent !important;
+  border: 2px solid var(--bad);
+  animation: mic-ring 1.2s ease-out infinite;
 }

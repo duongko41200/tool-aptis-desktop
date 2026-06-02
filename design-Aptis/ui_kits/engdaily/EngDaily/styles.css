@@ -1,0 +1,211 @@
+/* ============================================================
+   EngDaily — Lo-fi Study · Design System
+   Refined frosted-glass over a warm illustrated room.
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,500&family=Nunito:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+:root {
+  /* ---- accent (lime, tweakable) ---- */
+  --accent: #d9e89d;
+  --accent-strong: #c5e063;
+  --accent-deep: #aacb4f;
+  --accent-ink: #2c3a16;          /* dark text that sits ON the accent */
+
+  /* ---- ink / text ---- */
+  --ink: #232a1e;                 /* primary dark text (on light glass) */
+  --ink-2: #4b5443;               /* secondary */
+  --ink-3: #79836d;               /* muted */
+  --on-dark: #ffffff;             /* text over imagery / dark glass */
+  --on-dark-2: rgba(255,255,255,0.74);
+
+  /* ---- glass (light/white frosted — chosen for readability) ---- */
+  --glass-blur: 18px;
+  --glass-alpha: 0.74;
+  --glass: rgba(255,255,255, var(--glass-alpha));
+  --glass-2: rgba(255,255,255, calc(var(--glass-alpha) - 0.16));
+  --glass-line: rgba(255,255,255,0.65);
+  --glass-edge: rgba(40,55,30,0.08);
+
+  /* ---- dark glass (chrome bars, utility rail) ---- */
+  --darkglass: rgba(28,36,24,0.42);
+  --darkglass-2: rgba(28,36,24,0.62);
+  --darkglass-line: rgba(255,255,255,0.14);
+
+  /* ---- overlay over the bg image (tweakable darkness) ---- */
+  --overlay: 0.34;
+
+  /* ---- status ---- */
+  --good: #6fae5a;
+  --warn: #e0a93b;
+  --bad:  #d98a6a;
+  --info: #6aa6c4;
+
+  /* ---- radii ---- */
+  --r-sm: 12px;
+  --r-md: 18px;
+  --r-lg: 26px;
+  --r-xl: 34px;
+  --r-pill: 9999px;
+
+  /* ---- shadow ---- */
+  --sh-sm: 0 1px 2px rgba(20,28,15,0.10), 0 2px 8px rgba(20,28,15,0.06);
+  --sh-md: 0 8px 24px rgba(20,28,15,0.16), 0 2px 6px rgba(20,28,15,0.08);
+  --sh-lg: 0 24px 60px rgba(15,22,10,0.34), 0 6px 18px rgba(15,22,10,0.18);
+  --sh-glow: 0 6px 20px rgba(170,203,79,0.40);
+
+  /* ---- fonts (tweakable) ---- */
+  --font: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; height: 100%; }
+body {
+  font-family: var(--font);
+  color: var(--ink);
+  background: #11160c;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+button { font-family: inherit; cursor: pointer; border: none; background: none; }
+::selection { background: var(--accent-strong); color: var(--accent-ink); }
+
+/* ---- scrollbars ---- */
+.scroll::-webkit-scrollbar { width: 9px; height: 9px; }
+.scroll::-webkit-scrollbar-thumb { background: rgba(40,55,30,0.18); border-radius: 9999px; border: 2px solid transparent; background-clip: padding-box; }
+.scroll::-webkit-scrollbar-thumb:hover { background: rgba(40,55,30,0.34); background-clip: padding-box; }
+.scroll::-webkit-scrollbar-track { background: transparent; }
+
+/* ============================================================
+   Glass surfaces
+   ============================================================ */
+.glass {
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.25);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.25);
+  border: 1px solid var(--glass-line);
+  box-shadow: var(--sh-md), inset 0 1px 0 rgba(255,255,255,0.55);
+  border-radius: var(--r-lg);
+}
+.glass-2 {
+  background: var(--glass-2);
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) - 4px)) saturate(1.2);
+  backdrop-filter: blur(calc(var(--glass-blur) - 4px)) saturate(1.2);
+  border: 1px solid var(--glass-line);
+  box-shadow: var(--sh-sm), inset 0 1px 0 rgba(255,255,255,0.5);
+  border-radius: var(--r-md);
+}
+.darkglass {
+  background: var(--darkglass);
+  -webkit-backdrop-filter: blur(14px) saturate(1.1);
+  backdrop-filter: blur(14px) saturate(1.1);
+  border: 1px solid var(--darkglass-line);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.10);
+  color: var(--on-dark);
+}
+
+/* ============================================================
+   Buttons
+   ============================================================ */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 9px;
+  font-weight: 700; font-size: 15px; line-height: 1;
+  padding: 13px 22px; border-radius: var(--r-pill);
+  transition: all 160ms var(--ease);
+  white-space: nowrap; user-select: none;
+}
+.btn:active { transform: translateY(1px); }
+.btn-primary {
+  background: var(--accent); color: var(--accent-ink);
+  box-shadow: var(--sh-glow);
+}
+.btn-primary:hover { background: var(--accent-strong); box-shadow: 0 8px 26px rgba(170,203,79,0.55); }
+.btn-ghost {
+  background: var(--darkglass); color: var(--on-dark);
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  border: 1px solid var(--darkglass-line);
+}
+.btn-ghost:hover { background: var(--darkglass-2); }
+.btn-soft {
+  background: rgba(255,255,255,0.6); color: var(--ink);
+  border: 1px solid var(--glass-edge);
+}
+.btn-soft:hover { background: rgba(255,255,255,0.85); }
+.btn-sm { padding: 9px 15px; font-size: 13px; }
+.btn-lg { padding: 18px 34px; font-size: 18px; }
+
+/* icon button (circular, dark glass) */
+.iconbtn {
+  width: 42px; height: 42px; border-radius: var(--r-pill);
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--darkglass); color: var(--on-dark);
+  border: 1px solid var(--darkglass-line);
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  transition: all 160ms var(--ease);
+}
+.iconbtn:hover { background: var(--darkglass-2); transform: translateY(-1px); }
+
+/* ============================================================
+   Chips / pills / badges
+   ============================================================ */
+.chip {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 13px; font-weight: 600; color: var(--ink-2);
+  padding: 7px 13px; border-radius: var(--r-pill);
+  background: rgba(255,255,255,0.55); border: 1px solid var(--glass-edge);
+  transition: all 140ms var(--ease);
+}
+.chip-accent { background: rgba(217,232,157,0.5); color: var(--accent-ink); border-color: rgba(170,203,79,0.4); }
+.chip-dark { background: var(--darkglass); color: var(--on-dark); border-color: var(--darkglass-line); }
+.eyebrow {
+  font-size: 11px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase;
+}
+
+/* ============================================================
+   Layout helpers
+   ============================================================ */
+.label-cap { font-size: 11px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-3); }
+.divider { height: 1px; background: var(--glass-edge); border: 0; }
+
+/* progress bar */
+.bar { height: 7px; border-radius: 9999px; background: rgba(40,55,30,0.12); overflow: hidden; }
+.bar > i { display: block; height: 100%; background: var(--accent-deep); border-radius: 9999px; transition: width 600ms var(--ease); }
+
+/* ============================================================
+   App stage + background
+   ============================================================ */
+#stage { position: fixed; inset: 0; overflow: hidden; }
+#bg-layer { position: absolute; inset: 0; z-index: 0; }
+#bg-layer image-slot { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+#bg-overlay {
+  position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background:
+    radial-gradient(120% 90% at 50% 16%, rgba(10,16,6,0) 30%, rgba(10,16,6,0.22) 100%),
+    linear-gradient(180deg, rgba(10,16,6,calc(var(--overlay) * 0.7)) 0%, rgba(10,16,6,calc(var(--overlay) * 0.45)) 45%, rgba(10,16,6,var(--overlay)) 100%);
+  transition: background 240ms var(--ease);
+}
+#rain-layer { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+#app-root { position: absolute; inset: 0; z-index: 3; }
+
+/* particle dot used by JS rain */
+.particle { position: absolute; border-radius: 9999px; background: rgba(255,255,255,0.55); pointer-events: none; }
+
+/* screen + element entrances — transform-only so content is NEVER left invisible
+   even if the animation is paused/reset by a host runtime. */
+.screen { position: absolute; inset: 0; opacity: 1; animation: screen-in 520ms var(--ease) both; }
+@keyframes screen-in { from { transform: translateY(10px) scale(0.994); } to { transform: none; } }
+
+@keyframes pulse-soft { 0%,100% { transform: scale(1);} 50% { transform: scale(1.025);} }
+.pulse-soft { animation: pulse-soft 3.2s ease-in-out infinite; }
+
+.rise { opacity: 1; animation: rise 600ms var(--ease) both; }
+@keyframes rise { from { transform: translateY(14px); } to { transform: none; } }
+
+.card-flip, [data-card] { animation: card-in 300ms var(--ease) both; }
+@keyframes card-in { from { transform: scale(0.975); } to { transform: none; } }
+
+.text-shadow { text-shadow: 0 2px 14px rgba(8,12,4,0.45); }

@@ -1,0 +1,17 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  html,body{margin:0}
+  body{font-family:var(--ed-font);background:#f4f5f0;padding:30px;display:flex;gap:30px;flex-wrap:wrap}
+  .box{display:flex;flex-direction:column;align-items:center;gap:12px}
+  .card{width:120px;height:80px;background:#fff;border-radius:var(--ed-r-md);border:1px solid var(--ed-glass-edge)}
+  .glow{background:var(--ed-accent)}
+  .lbl{font:700 12px var(--ed-font);color:var(--ed-ink)}
+  .sub{font:500 11px var(--ed-font);color:var(--ed-ink-3);max-width:120px;text-align:center}
+</style></head>
+<body>
+  <div class="box"><div class="card" style="box-shadow:var(--ed-sh-sm)"></div><div class="lbl">sh-sm</div><div class="sub">resting tiles</div></div>
+  <div class="box"><div class="card" style="box-shadow:var(--ed-sh-md)"></div><div class="lbl">sh-md</div><div class="sub">glass cards</div></div>
+  <div class="box"><div class="card" style="box-shadow:var(--ed-sh-lg)"></div><div class="lbl">sh-lg</div><div class="sub">modals · hovered cards</div></div>
+  <div class="box"><div class="card glow" style="box-shadow:var(--ed-sh-glow)"></div><div class="lbl">sh-glow</div><div class="sub">accent buttons</div></div>
+</body></html>
