@@ -94,7 +94,7 @@ export default function ClipboardPopup({ content, charCount, onClose }: Props) {
   const ringPct = (countdown / DISMISS_SEC) * 283;
 
   return (
-    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', userSelect: 'none', background: 'transparent' }}>
+    <div style={{ width: '100%', height: '100%', overflowY: 'auto', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', userSelect: 'none', background: 'transparent' }}>
       <div
         style={{ width: '100%', borderRadius: 16, overflow: 'hidden', boxShadow: '0 8px 40px rgba(0,0,0,0.30)', background: '#ffffff' }}
         onMouseEnter={resetTimer}

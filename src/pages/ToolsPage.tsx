@@ -5,7 +5,6 @@ import type { RootState } from '../store';
 import ShadowingTab from '../components/speaking/ShadowingTab';
 import TeleprompterTab from '../components/speaking/TeleprompterTab';
 import WritingTab from '../components/writing/WritingTab';
-import VocabularyTab from '../components/vocabulary/VocabularyTab';
 import ClipboardTab from '../components/clipboard/ClipboardTab';
 import SettingsScreen from '../components/shared/SettingsScreen';
 import ErrorBoundary from '../components/shared/ErrorBoundary';
@@ -31,6 +30,7 @@ export default function ToolsPage() {
   const activeTab = (params.tab as TabId) ?? reduxTab ?? 'vocabulary';
 
   const setTab = (id: TabId) => {
+    if (id === 'vocabulary') { navigate('/vocab'); return; }
     dispatch(setActiveTab(id));
     navigate(`/tools/${id}`);
   };
@@ -70,7 +70,6 @@ export default function ToolsPage() {
           {activeTab === 'shadowing'    && <ShadowingTab />}
           {activeTab === 'teleprompter' && <TeleprompterTab />}
           {activeTab === 'writing'      && <WritingTab />}
-          {activeTab === 'vocabulary'   && <VocabularyTab />}
           {activeTab === 'clipboard'    && <ClipboardTab />}
           {activeTab === 'settings'     && <SettingsScreen />}
         </ErrorBoundary>

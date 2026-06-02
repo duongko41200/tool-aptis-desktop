@@ -1,6 +1,9 @@
 import { useEffect, useRef } from 'react';
 import { useDispatch } from 'react-redux';
+import { useQueryClient } from '@tanstack/react-query';
+import { listen } from '@tauri-apps/api/event';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import bgGif from './public/img/1_1IDOLADBDduPo-kjXpeGAA.gif';
 import { setOnlineStatus } from './store/appSlice';
 
 import WelcomePage           from './pages/WelcomePage';
@@ -9,6 +12,7 @@ import SpeakingPage          from './pages/SpeakingPage';
 import WritingPage           from './pages/WritingPage';
 import WritingFeedbackPage   from './pages/WritingFeedbackPage';
 import ToolsPage             from './pages/ToolsPage';
+import VocabPage             from './pages/VocabPage';
 
 /* ── Rain particle effect ───────────────────────────── */
 function Rain() {
@@ -61,6 +65,7 @@ function Rain() {
 /* ── App shell with routing ─────────────────────────── */
 function AppShell() {
   const dispatch = useDispatch();
+  const qc = useQueryClient();
 
   useEffect(() => {
     const up   = () => dispatch(setOnlineStatus(true));
@@ -73,10 +78,21 @@ function AppShell() {
     };
   }, [dispatch]);
 
+  // Sync cache when popup creates decks or notes
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    listen('anki:data-changed', () => {
+      qc.invalidateQueries({ queryKey: ['anki-decks'] });
+      qc.invalidateQueries({ queryKey: ['anki-notes'] });
+      qc.invalidateQueries({ queryKey: ['anki-due'] });
+    }).then(fn => { unlisten = fn; });
+    return () => { unlisten?.(); };
+  }, [qc]);
+
   return (
     <div className="lofi-stage">
       {/* Background layers */}
-      <div className="lofi-bg" />
+      <div className="lofi-bg" style={{ backgroundImage: `url(${bgGif})` }} />
       <div className="lofi-overlay" />
       <Rain />
 
@@ -88,7 +104,7 @@ function AppShell() {
           <Route path="/speaking"          element={<SpeakingPage />} />
           <Route path="/writing"           element={<WritingPage />} />
           <Route path="/writing/feedback"  element={<WritingFeedbackPage />} />
-          <Route path="/vocab"             element={<Navigate to="/tools/vocabulary" replace />} />
+          <Route path="/vocab"             element={<VocabPage />} />
           <Route path="/tools"             element={<Navigate to="/tools/vocabulary" replace />} />
           <Route path="/tools/:tab"        element={<ToolsPage />} />
           <Route path="*"                  element={<Navigate to="/" replace />} />

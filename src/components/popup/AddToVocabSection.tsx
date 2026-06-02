@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { emit } from '@tauri-apps/api/event';
 import { useDecks, useCreateDeck, useCreateNoteFromClipboard } from '../../hooks/useAnki';
 import type { TemplateType } from '../../types/anki';
 
@@ -8,7 +9,7 @@ interface Props {
 }
 
 export default function AddToVocabSection({ content, onSaved }: Props) {
-  const { data: decks = [] } = useDecks();
+  const { data: decks = [], refetch: refetchDecks } = useDecks();
   const { mutateAsync: createDeck } = useCreateDeck();
   const { mutateAsync: createNote, isPending } = useCreateNoteFromClipboard();
 
@@ -17,9 +18,10 @@ export default function AddToVocabSection({ content, onSaved }: Props) {
   const [front, setFront] = useState(content.slice(0, 200));
   const [back, setBack] = useState('');
 
-  // Update front when clipboard content changes
+  // Every time the popup shows (new clipboard content), sync front and refresh deck list
   useEffect(() => {
     setFront(content.slice(0, 200));
+    refetchDecks();
   }, [content]);
   const [tags, setTags] = useState('');
   const [newDeckName, setNewDeckName] = useState('');
@@ -47,6 +49,7 @@ export default function AddToVocabSection({ content, onSaved }: Props) {
     setDeckId(d.id);
     setNewDeckName('');
     setShowNewDeck(false);
+    await emit('anki:data-changed', { type: 'deck-created' });
   };
 
   const handleSave = async () => {
@@ -57,6 +60,7 @@ export default function AddToVocabSection({ content, onSaved }: Props) {
     setError(null);
     try {
       await createNote({ deckId: deckId as number, templateType: template, front, back: back || undefined, tags: tags || undefined });
+      await emit('anki:data-changed', { type: 'note-created' });
       onSaved();
     } catch (e) { setError(String(e)); }
   };

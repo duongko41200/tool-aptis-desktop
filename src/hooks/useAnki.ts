@@ -87,6 +87,7 @@ export function useSubmitRating() {
       submitCardRating(cardId, rating),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['anki-decks'] });
+      qc.invalidateQueries({ queryKey: ['anki-due'] });
     },
   });
 }
