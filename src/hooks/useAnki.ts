@@ -5,7 +5,9 @@ import {
   getNotesForDeck, getDueCardsForDeck,
   submitCardRating, buryCard, suspendCard, flagCard,
   createNoteFromClipboard,
+  saveDeckSession, getDeckSession,
 } from '../services/tauriCommands';
+import type { DeckSessionStats, NoteRatingEntry, DeckSession } from '../services/tauriCommands';
 
 export function useDecks() {
   return useQuery({ queryKey: ['anki-decks'], queryFn: getDecks, staleTime: 5000 });
@@ -121,3 +123,27 @@ export function useCreateNoteFromClipboard() {
     },
   });
 }
+
+// ── Session persistence ──────────────────────────────────────────────────────
+
+export function useDeckSession(deckId: number | null) {
+  return useQuery({
+    queryKey: ['anki-session', deckId],
+    queryFn: () => getDeckSession(deckId!),
+    enabled: deckId !== null,
+    staleTime: Infinity, // only invalidate explicitly after save
+  });
+}
+
+export function useSaveDeckSession() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (params: { deckId: number; stats: DeckSessionStats; noteRatings: NoteRatingEntry[] }) =>
+      saveDeckSession(params),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ['anki-session', vars.deckId] });
+    },
+  });
+}
+
+export type { DeckSession, DeckSessionStats, NoteRatingEntry };

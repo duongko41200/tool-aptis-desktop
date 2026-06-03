@@ -6,6 +6,8 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import bgGif from './public/img/1_1IDOLADBDduPo-kjXpeGAA.gif';
 import { setOnlineStatus } from './store/appSlice';
 
+import { TweaksProvider, useTweaks } from './contexts/TweaksContext';
+import TweaksPanel                   from './components/shared/TweaksPanel';
 import WelcomePage           from './pages/WelcomePage';
 import DashboardPage         from './pages/DashboardPage';
 import SpeakingPage          from './pages/SpeakingPage';
@@ -13,6 +15,7 @@ import WritingPage           from './pages/WritingPage';
 import WritingFeedbackPage   from './pages/WritingFeedbackPage';
 import ToolsPage             from './pages/ToolsPage';
 import VocabPage             from './pages/VocabPage';
+import ListeningPage         from './pages/ListeningPage';
 
 /* ── Rain particle effect ───────────────────────────── */
 function Rain() {
@@ -66,6 +69,7 @@ function Rain() {
 function AppShell() {
   const dispatch = useDispatch();
   const qc = useQueryClient();
+  const { tweaks } = useTweaks();
 
   useEffect(() => {
     const up   = () => dispatch(setOnlineStatus(true));
@@ -94,9 +98,10 @@ function AppShell() {
       {/* Background layers */}
       <div className="lofi-bg" style={{ backgroundImage: `url(${bgGif})` }} />
       <div className="lofi-overlay" />
-      <Rain />
+      {tweaks.rain && <Rain />}
 
       {/* Routed screens */}
+      <TweaksPanel />
       <div className="lofi-app-root">
         <Routes>
           <Route path="/"                  element={<WelcomePage />} />
@@ -105,6 +110,7 @@ function AppShell() {
           <Route path="/writing"           element={<WritingPage />} />
           <Route path="/writing/feedback"  element={<WritingFeedbackPage />} />
           <Route path="/vocab"             element={<VocabPage />} />
+          <Route path="/listening"        element={<ListeningPage />} />
           <Route path="/tools"             element={<Navigate to="/tools/vocabulary" replace />} />
           <Route path="/tools/:tab"        element={<ToolsPage />} />
           <Route path="*"                  element={<Navigate to="/" replace />} />
@@ -117,7 +123,9 @@ function AppShell() {
 export default function App() {
   return (
     <BrowserRouter>
-      <AppShell />
+      <TweaksProvider>
+        <AppShell />
+      </TweaksProvider>
     </BrowserRouter>
   );
 }

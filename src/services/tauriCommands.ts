@@ -162,3 +162,28 @@ export const createNoteFromClipboard = (params: {
   deckId: number; templateType: string; front: string;
   back?: string; tags?: string;
 }) => invoke<{ note: Note; cards: Card[] }>('create_note_from_clipboard', params);
+
+// ── Session persistence ──────────────────────────────────────────────────────
+export interface DeckSessionStats {
+  again: number; hard: number; good: number; easy: number;
+}
+export interface NoteRatingEntry { note_id: number; rating: string; }
+export interface DeckSession {
+  deck_id: number;
+  again: number; hard: number; good: number; easy: number;
+  note_ratings: NoteRatingEntry[];
+  last_session_at: string;
+}
+
+export const saveDeckSession = (params: {
+  deckId: number;
+  stats: DeckSessionStats;
+  noteRatings: NoteRatingEntry[];
+}) => invoke<void>('save_deck_session', {
+  deckId:      params.deckId,
+  stats:       params.stats,
+  noteRatings: params.noteRatings,
+});
+
+export const getDeckSession = (deckId: number) =>
+  invoke<DeckSession>('get_deck_session', { deckId });

@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EngDaily — Listening + Pomodoro + Tweaks</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js" crossorigin></script>
+<style>
+/* ── Design tokens ──────────────────────────────────────────────── */
+:root {
+  --accent:#d9e89d; --accent-strong:#c5e063; --accent-deep:#aacb4f; --accent-ink:#2c3a16;
+  --ink:#232a1e; --ink-2:#4b5443; --ink-3:#79836d;
+  --on-dark:#ffffff; --on-dark-2:rgba(255,255,255,0.74);
+  --glass-blur:18px; --glass-alpha:0.74;
+  --glass:rgba(255,255,255,0.74); --glass-2:rgba(255,255,255,0.58);
+  --glass-line:rgba(255,255,255,0.65); --glass-edge:rgba(40,55,30,0.08);
+  --darkglass:rgba(28,36,24,0.42); --darkglass-2:rgba(28,36,24,0.62);
+  --darkglass-line:rgba(255,255,255,0.14);
+  --overlay:0.34;
+  --good:#6fae5a; --warn:#e0a93b; --bad:#d98a6a; --info:#6aa6c4;
+  --r-sm:12px; --r-md:18px; --r-lg:26px; --r-xl:34px; --r-pill:9999px;
+  --sh-sm:0 1px 2px rgba(20,28,15,.10),0 2px 8px rgba(20,28,15,.06);
+  --sh-md:0 8px 24px rgba(20,28,15,.16),0 2px 6px rgba(20,28,15,.08);
+  --sh-lg:0 24px 60px rgba(15,22,10,.34),0 6px 18px rgba(15,22,10,.18);
+  --sh-glow:0 6px 20px rgba(170,203,79,.40);
+  --font:'Plus Jakarta Sans',ui-sans-serif,system-ui,sans-serif;
+  --font-mono:'JetBrains Mono',ui-monospace,monospace;
+  --ease:cubic-bezier(0.4,0,0.2,1);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;font-family:var(--font);color:var(--ink);background:#11160c;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+button{font-family:inherit;cursor:pointer;border:none;background:none}
+input[type=range]{cursor:pointer}
+::selection{background:var(--accent-strong);color:var(--accent-ink)}
+
+/* ── Glass ──────────────────────────────────────────────────────── */
+.glass{background:var(--glass);-webkit-backdrop-filter:blur(var(--glass-blur)) saturate(1.25);backdrop-filter:blur(var(--glass-blur)) saturate(1.25);border:1px solid var(--glass-line);box-shadow:var(--sh-md),inset 0 1px 0 rgba(255,255,255,.55);border-radius:var(--r-lg)}
+.glass-2{background:var(--glass-2);-webkit-backdrop-filter:blur(14px) saturate(1.2);backdrop-filter:blur(14px) saturate(1.2);border:1px solid var(--glass-line);box-shadow:var(--sh-sm),inset 0 1px 0 rgba(255,255,255,.5);border-radius:var(--r-lg)}
+.darkglass{background:var(--darkglass);-webkit-backdrop-filter:blur(14px) saturate(1.1);backdrop-filter:blur(14px) saturate(1.1);border:1px solid var(--darkglass-line);box-shadow:inset 0 1px 0 rgba(255,255,255,.1);color:var(--on-dark)}
+
+/* ── Buttons ────────────────────────────────────────────────────── */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;font-weight:700;font-size:14px;line-height:1;padding:11px 20px;border-radius:var(--r-pill);transition:all 160ms var(--ease);white-space:nowrap;user-select:none}
+.btn:active{transform:translateY(1px)}
+.btn-primary{background:var(--accent);color:var(--accent-ink);box-shadow:var(--sh-glow)}
+.btn-primary:hover{background:var(--accent-strong);box-shadow:0 8px 26px rgba(170,203,79,.55)}
+.btn-ghost{background:var(--darkglass);color:var(--on-dark);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border:1px solid var(--darkglass-line)}
+.btn-ghost:hover{background:var(--darkglass-2)}
+.btn-soft{background:rgba(255,255,255,.6);color:var(--ink);border:1px solid var(--glass-edge)}
+.btn-soft:hover{background:rgba(255,255,255,.88)}
+.btn-sm{padding:8px 14px;font-size:12.5px}
+.iconbtn{width:38px;height:38px;border-radius:var(--r-pill);display:inline-flex;align-items:center;justify-content:center;background:var(--darkglass);color:var(--on-dark);border:1px solid var(--darkglass-line);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);transition:all 160ms var(--ease);flex-shrink:0}
+.iconbtn:hover{background:var(--darkglass-2);transform:translateY(-1px)}
+.iconbtn.active{background:rgba(217,232,157,.2);border-color:var(--accent);color:var(--accent)}
+
+/* ── Chips ──────────────────────────────────────────────────────── */
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--ink-2);padding:6px 12px;border-radius:var(--r-pill);background:rgba(255,255,255,.55);border:1px solid var(--glass-edge);transition:all 140ms var(--ease)}
+.chip-accent{background:rgba(217,232,157,.5);color:var(--accent-ink);border-color:rgba(170,203,79,.4)}
+.chip-dark{background:var(--darkglass);color:var(--on-dark);border-color:var(--darkglass-line)}
+.chip-active{background:var(--accent);color:var(--accent-ink);border-color:var(--accent-strong);box-shadow:var(--sh-glow)}
+
+/* ── Utilities ──────────────────────────────────────────────────── */
+.label-cap{font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)}
+.bar{height:6px;border-radius:9999px;background:rgba(40,55,30,.12);overflow:hidden}
+.bar>i{display:block;height:100%;background:var(--accent-deep);border-radius:9999px;transition:width 400ms var(--ease)}
+
+/* ── Animations ─────────────────────────────────────────────────── */
+.screen{position:absolute;inset:0;animation:screen-in 520ms var(--ease) both}
+@keyframes screen-in{from{transform:translateY(10px) scale(.994)}to{transform:none}}
+.rise{animation:rise 600ms var(--ease) both}
+@keyframes rise{from{transform:translateY(12px)}to{transform:none}}
+
+/* ── Scrollbar ──────────────────────────────────────────────────── */
+.scroll::-webkit-scrollbar{width:7px}
+.scroll::-webkit-scrollbar-thumb{background:rgba(40,55,30,.16);border-radius:9999px;border:2px solid transparent;background-clip:padding-box}
+.scroll::-webkit-scrollbar-thumb:hover{background:rgba(40,55,30,.28);background-clip:padding-box}
+.scroll::-webkit-scrollbar-track{background:transparent}
+
+/* ── Stage ──────────────────────────────────────────────────────── */
+#stage{position:fixed;inset:0;overflow:hidden}
+#bg-layer{position:absolute;inset:0;z-index:0}
+#bg-gradient{position:absolute;inset:0;
+  background:
+    radial-gradient(ellipse 70% 70% at 15% 85%, #1f2e10 0%, transparent 55%),
+    radial-gradient(ellipse 55% 65% at 85% 15%, #192810 0%, transparent 50%),
+    radial-gradient(ellipse 45% 55% at 60% 75%, #141e0c 0%, transparent 45%),
+    linear-gradient(170deg,#0a0f06 0%,#0e1409 50%,#070c05 100%)}
+#bg-overlay{position:absolute;inset:0;z-index:1;pointer-events:none;
+  background:
+    radial-gradient(120% 90% at 50% 16%,rgba(10,16,6,0) 30%,rgba(10,16,6,.22) 100%),
+    linear-gradient(180deg,rgba(10,16,6,calc(var(--overlay)*.7)) 0%,rgba(10,16,6,calc(var(--overlay)*.4)) 45%,rgba(10,16,6,var(--overlay)) 100%)}
+#rain-layer{position:absolute;inset:0;z-index:2;pointer-events:none}
+#app-root{position:absolute;inset:0;z-index:3;display:flex;flex-direction:column}
+
+/* ── Waveform bars ──────────────────────────────────────────────── */
+@keyframes bar-dance{0%,100%{transform:scaleY(1)}50%{transform:scaleY(var(--h,1.6))}}
+.wf-bar{transform-origin:center bottom;border-radius:3px}
+.wf-bar.playing{animation:bar-dance calc(.42s + var(--d,0s)) ease-in-out infinite}
+
+/* ── Tweaks panel ───────────────────────────────────────────────── */
+.tweaks-overlay{position:fixed;inset:0;z-index:1000;pointer-events:none;display:flex;justify-content:flex-end}
+.tweaks-overlay.open{pointer-events:all}
+.tweaks-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.18);opacity:0;transition:opacity 300ms var(--ease)}
+.tweaks-overlay.open .tweaks-backdrop{opacity:1}
+.tweaks-drawer{position:relative;width:295px;height:100%;
+  background:rgba(251,250,247,.9);-webkit-backdrop-filter:blur(28px) saturate(170%);backdrop-filter:blur(28px) saturate(170%);
+  border-left:.5px solid rgba(255,255,255,.65);box-shadow:-6px 0 48px rgba(0,0,0,.3);
+  display:flex;flex-direction:column;transform:translateX(100%);transition:transform 320ms var(--ease);
+  color:#29261b}
+.tweaks-overlay.open .tweaks-drawer{transform:translateX(0)}
+.tweaks-head{display:flex;align-items:center;justify-content:space-between;padding:18px 18px 14px;
+  border-bottom:.5px solid rgba(0,0,0,.07)}
+.tweaks-body{flex:1;overflow-y:auto;padding:8px 16px 24px;display:flex;flex-direction:column;gap:6px;font-size:12px;
+  scrollbar-width:thin;scrollbar-color:rgba(0,0,0,.13) transparent}
+.tweaks-body::-webkit-scrollbar{width:5px}
+.tweaks-body::-webkit-scrollbar-thumb{background:rgba(0,0,0,.13);border-radius:4px}
+
+/* tweak controls */
+.tw-sect{font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:rgba(41,38,27,.42);padding:10px 0 3px;border-top:.5px solid rgba(0,0,0,.06);margin-top:4px}
+.tw-sect:first-child{border-top:none;padding-top:4px}
+.tw-row{display:flex;flex-direction:column;gap:4px;padding:1px 0}
+.tw-row-h{flex-direction:row;align-items:center;justify-content:space-between;gap:10px;padding:3px 0}
+.tw-lbl{font-size:12px;font-weight:500;color:rgba(41,38,27,.8);display:flex;justify-content:space-between;align-items:baseline;margin-bottom:1px}
+.tw-val{font-size:11px;color:rgba(41,38,27,.42);font-variant-numeric:tabular-nums;font-family:var(--font-mono)}
+.tw-slider{appearance:none;-webkit-appearance:none;width:100%;height:4px;margin:3px 0;
+  border-radius:999px;background:rgba(0,0,0,.12);outline:none}
+.tw-slider::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;
+  background:#fff;border:.5px solid rgba(0,0,0,.15);box-shadow:0 1px 3px rgba(0,0,0,.22);cursor:pointer}
+.tw-slider::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:#fff;border:.5px solid rgba(0,0,0,.15);box-shadow:0 1px 3px rgba(0,0,0,.22)}
+.tw-toggle{position:relative;width:32px;height:18px;border:0;border-radius:999px;background:rgba(0,0,0,.15);transition:background .15s;cursor:pointer;padding:0;flex-shrink:0}
+.tw-toggle[data-on="1"]{background:var(--accent-deep)}
+.tw-toggle i{position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .15s;pointer-events:none}
+.tw-toggle[data-on="1"] i{transform:translateX(14px)}
+.tw-seg{position:relative;display:flex;padding:2px;border-radius:8px;background:rgba(0,0,0,.06);user-select:none}
+.tw-seg-thumb{position:absolute;top:2px;bottom:2px;border-radius:6px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.14);transition:left .15s,width .15s;pointer-events:none}
+.tw-seg button{position:relative;z-index:1;flex:1;border:0;background:transparent;color:rgba(41,38,27,.75);font:inherit;font-size:11.5px;font-weight:500;min-height:22px;border-radius:6px;cursor:pointer;padding:2px 4px;line-height:1.2;transition:color .1s}
+.tw-seg button.active{color:#29261b;font-weight:700}
+.tw-num-row{display:flex;align-items:center;gap:8px}
+.tw-num-btn{width:24px;height:24px;border-radius:7px;background:rgba(0,0,0,.07);color:rgba(41,38,27,.8);font-size:15px;font-weight:600;display:grid;place-items:center;cursor:pointer;border:none;flex-shrink:0;transition:background .12s}
+.tw-num-btn:hover{background:rgba(0,0,0,.14)}
+.tw-num-val{flex:1;text-align:center;font-weight:700;font-size:15px;color:#29261b;font-variant-numeric:tabular-nums}
+.tw-num-unit{font-size:11px;color:rgba(41,38,27,.4);font-weight:400}
+.tw-color-row{display:flex;gap:6px;flex-wrap:wrap;padding:2px 0}
+.tw-color-btn{width:30px;height:30px;border-radius:9px;border:2.5px solid transparent;cursor:pointer;transition:all .14s;flex-shrink:0;outline:none}
+.tw-color-btn.active{border-color:#29261b;transform:scale(1.1);box-shadow:0 2px 8px rgba(0,0,0,.2)}
+.tw-color-btn:hover:not(.active){transform:scale(1.06)}
+
+/* ── Pomodoro ring ──────────────────────────────────────────────── */
+.pomo-ring-track{fill:none;stroke:rgba(40,55,30,.12);stroke-width:8}
+.pomo-ring-fill{fill:none;stroke-width:8;stroke-linecap:round;transition:stroke-dashoffset .7s var(--ease),stroke .4s}
+@keyframes pomo-beat{0%,100%{transform:scale(1)}50%{transform:scale(1.025)}}
+.pomo-running{animation:pomo-beat 2.4s ease-in-out infinite}
+
+/* ── Vocab tooltip ──────────────────────────────────────────────── */
+.vocab-tip{position:fixed;z-index:600;min-width:210px;max-width:268px;
+  background:rgba(255,255,255,.94);-webkit-backdrop-filter:blur(22px);backdrop-filter:blur(22px);
+  border:1px solid rgba(255,255,255,.8);border-radius:var(--r-md);
+  box-shadow:var(--sh-lg),inset 0 1px 0 rgba(255,255,255,.7);
+  padding:14px 16px;animation:rise 180ms var(--ease) both;color:var(--ink)}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback, useMemo } = React;
+
+/* ── Icons ────────────────────────────────────────────────────────── */
+const IC = {
+  play:'M7 5.5v13l11-6.5z', pause:'M8 5v14M16 5v14',
+  skip:'M5 5l9 7-9 7z M19 5v14', prev:'M19 5l-9 7 9 7z M5 5v14',
+  repeat:'M3 12a9 9 0 0 1 15-6.7L21 8M21 4v4h-4 M21 12a9 9 0 0 1-15 6.7L3 16M3 20v-4h4',
+  headphones:'M5 14v-2a7 7 0 0 1 14 0v2 M5 14a2.5 2.5 0 0 1 5 0v3a2.5 2.5 0 0 1-5 0z M19 14a2.5 2.5 0 0 0-5 0v3a2.5 2.5 0 0 0 5 0z',
+  volume:'M5 9v6h4l5 4V5L9 9z M16.5 9a3.5 3.5 0 0 1 0 6 M19 6.5a7 7 0 0 1 0 11',
+  settings:'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M19 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1V21a2 2 0 0 1-4 0v-.2A1.6 1.6 0 0 0 7 19.3a1.6 1.6 0 0 0-1.8.3l-.1.1A2 2 0 1 1 2.3 17l.1-.1a1.6 1.6 0 0 0 .3-1.8V15a1.6 1.6 0 0 0-1.5-1H1a2 2 0 0 1 0-4h.2A1.6 1.6 0 0 0 2.7 9a1.6 1.6 0 0 0-.3-1.8L2.3 7A2 2 0 1 1 5 4.3l.1.1A1.6 1.6 0 0 0 7 4.7h.1A1.6 1.6 0 0 0 8.5 3.2V3a2 2 0 0 1 4 0v.2A1.6 1.6 0 0 0 15 4.7a1.6 1.6 0 0 0 1.8-.3L16.9 4A2 2 0 1 1 20.7 7l-.1.1A1.6 1.6 0 0 0 20 9v.1a1.6 1.6 0 0 0 1.5 1.4H22a2 2 0 0 1 0 4h-.2a1.6 1.6 0 0 0-1.4 1.1z',
+  close:'M6 6l12 12M18 6L6 18',
+  chevL:'M15 6l-6 6 6 6',
+  bookmark:'M7 4h10v16l-5-3.5L7 20z',
+  mic:'M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3z M6 11a6 6 0 0 0 12 0 M12 17v3 M9 20h6',
+  book:'M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z M20 18H6.5A2.5 2.5 0 0 0 4 20.5',
+  list:'M8 6h12M8 12h12M8 18h12 M4 6h.01M4 12h.01M4 18h.01',
+  check:'M5 12.5l4.5 4.5L19 7.5',
+  checkCircle:'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M8.5 12l2.4 2.4 4.6-4.8',
+  flame:'M12 3c1 3-2 4-2 7a2 2 0 0 0 4 0c0-1-.5-1.7-.5-2.5 2 1.2 3.5 3.3 3.5 6a5 5 0 0 1-10 0c0-3.5 3-5 5-10.5z',
+  sparkle:'M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z M19 15l.7 2 .2.8.8.2 2 .7-2 .7-.8.2-.2.8-.7 2-.7-2-.2-.8-.8-.2-2-.7 2-.7.8-.2.2-.8z',
+};
+function Icon({ name, size=20, stroke=1.7, fill=false, style, color }) {
+  const d = IC[name] || IC.sparkle;
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+      style={{flexShrink:0, color:color||'inherit', ...style}}
+      stroke="currentColor" strokeWidth={stroke} strokeLinecap="round" strokeLinejoin="round">
+      <path d={d} fill={fill ? 'currentColor' : 'none'} stroke={fill ? 'none' : 'currentColor'}/>
+    </svg>
+  );
+}
+
+/* ── Data ─────────────────────────────────────────────────────────── */
+const SENTENCES = [
+  { id:0, start:0,   end:13, text:"Good morning everyone. Welcome to this listening practice session on environmental science." },
+  { id:1, start:13,  end:28, text:"Today we'll focus on key academic vocabulary — words you're likely to encounter in the IELTS and APTIS examinations." },
+  { id:2, start:28,  end:44, text:"The term 'biodiversity' refers to the variety of life on Earth, encompassing all species of plants, animals, and microorganisms." },
+  { id:3, start:44,  end:59, text:"Scientists have identified over 8.7 million species on our planet, yet the vast majority remain undocumented and unstudied." },
+  { id:4, start:59,  end:75, text:"Urban sprawl — the uncontrolled expansion of cities into surrounding rural land — is one of the primary threats to local ecosystems." },
+  { id:5, start:75,  end:91, text:"Conversely, sustainable urban planning incorporates green corridors and nature reserves to mitigate habitat fragmentation." },
+  { id:6, start:91,  end:107, text:"The concept of 'ecosystem services' describes the direct and indirect benefits that humans derive from functioning natural ecosystems." },
+  { id:7, start:107, end:123, text:"These include provisioning services such as food and fresh water, and regulating services such as flood control and climate moderation." },
+  { id:8, start:123, end:140, text:"Economists have begun to quantify these services, assigning monetary value to nature's contributions to human wellbeing." },
+  { id:9, start:140, end:157, text:"However, critics argue that commodifying nature risks undermining the intrinsic values that cannot be reduced to financial metrics." },
+];
+
+const VOCAB_DEFS = {
+  biodiversity: { ipa:'/ˌbaɪ.əʊ.daɪˈvɜː.sɪ.ti/', vn:'Đa dạng sinh học', def:'The variety of plant and animal life in the world or in a particular habitat, considered to be important and desirable.' },
+  sprawl: { ipa:'/sprɔːl/', vn:'Sự mở rộng tràn lan', def:'(n) The spreading of a city or town into the surrounding area in an unplanned way.' },
+  sustainable: { ipa:'/səˈsteɪ.nə.bəl/', vn:'Bền vững', def:'Able to be maintained at a certain rate or level; avoiding depletion of natural resources.' },
+  ecosystems: { ipa:'/ˈiː.kəʊ.sɪs.təmz/', vn:'Hệ sinh thái', def:'All the living things in an area and their relationship to their environment.' },
+  mitigate: { ipa:'/ˈmɪt.ɪ.ɡeɪt/', vn:'Giảm nhẹ, làm dịu', def:'To make something less harmful, serious, or severe.' },
+  fragmentation: { ipa:'/ˌfræɡ.menˈteɪ.ʃən/', vn:'Sự phân mảnh', def:'The process of breaking or dividing something into many small pieces.' },
+  provisioning: { ipa:'/prəˈvɪʒ.ən.ɪŋ/', vn:'Cung cấp', def:'Supplying or providing something, especially for future use.' },
+  quantify: { ipa:'/ˈkwɒn.tɪ.faɪ/', vn:'Định lượng', def:'To express or measure the quantity of something precisely.' },
+  commodifying: { ipa:'/kəˈmɒd.ɪ.faɪ.ɪŋ/', vn:'Thương mại hoá', def:'Treating something as if it were purely a commercial product.' },
+  intrinsic: { ipa:'/ɪnˈtrɪn.zɪk/', vn:'Nội tại, vốn có', def:'Belonging naturally; essential. The value of something in itself, not because of what it can produce.' },
+};
+
+/* ── Defaults ─────────────────────────────────────────────────────── */
+const DEFAULTS = {
+  accent:'#d9e89d', overlay:0.34, glassBlur:18, glassAlpha:0.74,
+  rain:true, font:'Plus Jakarta Sans',
+  transcriptSize:15, autoScroll:true, vocabHighlight:true, repeatMode:'off',
+  defaultSpeed:1,
+  pomoWork:25, pomoShort:5, pomoLong:15, pomoAutoBreak:false,
+};
+const ACCENTS = ['#d9e89d','#bef264','#a7e8c4','#f6c177','#c7b8f0'];
+
+/* ── Rain ─────────────────────────────────────────────────────────── */
+function Rain({ on }) {
+  const drops = useMemo(()=>Array.from({length:44},(_,i)=>({
+    id:i, left:Math.random()*100, delay:Math.random()*7,
+    dur:3+Math.random()*4.5, size:1.2+Math.random()*2,
+    op:0.14+Math.random()*0.32, len:6+Math.random()*14,
+  })),[]);
+  if(!on) return null;
+  return (
+    <div id="rain-layer" aria-hidden="true">
+      <style>{`@keyframes ed-fall{0%{transform:translateY(-12vh);opacity:0}12%{opacity:1}88%{opacity:1}100%{transform:translateY(112vh);opacity:0}}`}</style>
+      {drops.map(d=>(
+        <span key={d.id} style={{
+          position:'absolute', left:d.left+'%', top:0, width:d.size, height:d.len,
+          borderRadius:9999, background:`linear-gradient(rgba(255,255,255,0),rgba(255,255,255,${d.op}))`,
+          animation:`ed-fall ${d.dur}s linear ${d.delay}s infinite`,
+        }}/>
+      ))}
+    </div>
+  );
+}
+
+/* ── Waveform ─────────────────────────────────────────────────────── */
+function Waveform({ playing, progress, onSeek }) {
+  const N = 52;
+  const ref = useRef(null);
+  const heights = useMemo(()=>Array.from({length:N},()=>0.18+Math.random()*0.82),[]);
+  const handleClick = (e) => {
+    if(!ref.current) return;
+    const r = ref.current.getBoundingClientRect();
+    onSeek((e.clientX - r.left) / r.width);
+  };
+  return (
+    <div ref={ref} onClick={handleClick}
+      style={{display:'flex',alignItems:'flex-end',gap:2,height:34,cursor:'pointer',flex:1,padding:'0 2px'}}>
+      {heights.map((h,i)=>{
+        const pos = i/N;
+        const filled = pos < progress;
+        const near = Math.abs(pos - progress) < 0.025;
+        return (
+          <div key={i} className={`wf-bar${playing?' playing':''}`} style={{
+            flex:1, height:Math.round(h*30+4)+'px',
+            '--h': 0.4+h*1.8, '--d': (i*0.018)+'s',
+            background: near ? 'var(--accent)' : filled ? 'rgba(170,203,79,.7)' : 'rgba(255,255,255,.18)',
+            transition:'background .12s',
+          }}/>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ── Audio Player ─────────────────────────────────────────────────── */
+function AudioPlayer({ playing, onPlayPause, speed, onSpeed, progress, onSeek, onPrev, onNext, repeat, onRepeat, onShadow, shadowing }) {
+  const [vol, setVol] = useState(0.8);
+  const total = SENTENCES[SENTENCES.length-1].end;
+  const elapsed = Math.round(progress * total);
+  const fmt = s => String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
+  const SPEEDS = [0.75, 1, 1.25, 1.5];
+  return (
+    <div className="darkglass" style={{
+      position:'absolute', bottom:0, left:0, right:0,
+      padding:'12px 24px 20px',
+      borderRadius:'var(--r-xl) var(--r-xl) 0 0',
+      zIndex:10,
+    }}>
+      {/* track info + speed chips */}
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
+        <div>
+          <div style={{fontSize:13.5,fontWeight:700,color:'#fff',lineHeight:1.2}}>IELTS Academic — Environmental Science &amp; Biodiversity</div>
+          <div style={{fontSize:11,color:'rgba(255,255,255,.45)',marginTop:2}}>Cambridge IELTS 17 · Section 4 · 2 phút 37 giây</div>
+        </div>
+        <div style={{display:'flex',gap:5,alignItems:'center'}}>
+          <span style={{fontSize:10.5,fontWeight:700,letterSpacing:'.06em',textTransform:'uppercase',color:'rgba(255,255,255,.4)',marginRight:4}}>Tốc độ</span>
+          {SPEEDS.map(s=>(
+            <button key={s} onClick={()=>onSpeed(s)}
+              className={s===speed ? 'chip chip-active' : 'chip chip-dark'}
+              style={{padding:'5px 10px',fontSize:12,minWidth:42}}>
+              {s}×
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* waveform + time */}
+      <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12}}>
+        <span style={{fontFamily:'var(--font-mono)',fontSize:11,color:'rgba(255,255,255,.5)',minWidth:34}}>{fmt(elapsed)}</span>
+        <Waveform playing={playing} progress={progress} onSeek={onSeek}/>
+        <span style={{fontFamily:'var(--font-mono)',fontSize:11,color:'rgba(255,255,255,.5)',minWidth:34,textAlign:'right'}}>{fmt(total)}</span>
+      </div>
+
+      {/* controls row */}
+      <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:12}}>
+        <button className="iconbtn" style={{width:36,height:36}} onClick={onPrev} title="Câu trước">
+          <Icon name="prev" size={15} fill/>
+        </button>
+        <button onClick={onPlayPause} style={{
+          width:52,height:52,borderRadius:'50%',background:'var(--accent)',color:'var(--accent-ink)',
+          display:'grid',placeItems:'center',boxShadow:'var(--sh-glow)',border:'none',cursor:'pointer',
+          transition:'all 160ms var(--ease)',flexShrink:0,
+        }}
+        onMouseEnter={e=>e.currentTarget.style.background='var(--accent-strong)'}
+        onMouseLeave={e=>e.currentTarget.style.background='var(--accent)'}>
+          <Icon name={playing ? 'pause' : 'play'} size={22} fill/>
+        </button>
+        <button className="iconbtn" style={{width:36,height:36}} onClick={onNext} title="Câu tiếp">
+          <Icon name="skip" size={15} fill/>
+        </button>
+
+        <div style={{width:1,height:22,background:'rgba(255,255,255,.14)',margin:'0 2px'}}/>
+
+        <button className={`iconbtn${repeat?' active':''}`} style={{width:36,height:36}}
+          onClick={onRepeat} title="Lặp câu">
+          <Icon name="repeat" size={15}/>
+        </button>
+        <button className={`iconbtn${shadowing?' active':''}`} style={{width:36,height:36}}
+          onClick={onShadow} title="Chế độ nhại">
+          <Icon name="mic" size={15}/>
+        </button>
+
+        <div style={{display:'flex',alignItems:'center',gap:7,marginLeft:8}}>
+          <Icon name="volume" size={15} color="rgba(255,255,255,.45)"/>
+          <input type="range" min={0} max={1} step={0.05} value={vol}
+            onChange={e=>setVol(+e.target.value)}
+            style={{width:80,accentColor:'var(--accent)',cursor:'pointer'}}/>
+        </div>
+      </div>
+
+      {/* shadowing hint */}
+      {shadowing && (
+        <div style={{
+          marginTop:10,padding:'8px 14px',borderRadius:'var(--r-sm)',
+          background:'rgba(217,232,157,.15)',border:'1px solid rgba(217,232,157,.3)',
+          fontSize:12,color:'var(--accent)',fontWeight:600,textAlign:'center',
+        }}>
+          Chế độ nhại đang bật — nghe xong rồi lặp lại câu theo bản ghi
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Sentence row ─────────────────────────────────────────────────── */
+const HL_WORDS = Object.keys(VOCAB_DEFS);
+
+function SentenceRow({ s, active, fontSize, vocabHL, onJump, onWord }) {
+  const tokens = s.text.split(/(\s+)/);
+  return (
+    <div
+      onClick={()=>onJump(s.id)}
+      style={{
+        padding:'11px 14px', borderRadius:'var(--r-md)',
+        background: active ? 'rgba(217,232,157,.2)' : 'transparent',
+        border: active ? '1px solid rgba(170,203,79,.3)' : '1px solid transparent',
+        cursor:'pointer', transition:'background 180ms, border 180ms',
+        marginBottom:3,
+      }}
+      onMouseEnter={e=>{ if(!active) e.currentTarget.style.background='rgba(40,55,30,.04)' }}
+      onMouseLeave={e=>{ if(!active) e.currentTarget.style.background='transparent' }}
+    >
+      <div style={{display:'flex',gap:10,alignItems:'flex-start'}}>
+        <span style={{
+          fontFamily:'var(--font-mono)', fontSize:10, color:active?'var(--accent-deep)':'var(--ink-3)',
+          fontWeight:700, minWidth:24, paddingTop:3, flexShrink:0, letterSpacing:'.02em',
+        }}>
+          {String(s.id+1).padStart(2,'0')}
+        </span>
+        <p style={{
+          fontSize:fontSize, lineHeight:1.68, color:active?'var(--ink)':'var(--ink-2)',
+          fontWeight:active?600:400, margin:0, flex:1,
+        }}>
+          {tokens.map((w,i)=>{
+            if(/^\s+$/.test(w)) return w;
+            const clean = w.toLowerCase().replace(/[''',.()"!?:;]/g,'');
+            const isHL = vocabHL && HL_WORDS.includes(clean);
+            return (
+              <span key={i}
+                onClick={isHL ? e=>{ e.stopPropagation(); onWord(clean, e) } : undefined}
+                style={{
+                  background: isHL ? 'rgba(217,232,157,.45)' : 'transparent',
+                  borderRadius: isHL ? 4 : 0,
+                  padding: isHL ? '1px 3px' : 0,
+                  cursor: isHL ? 'pointer' : 'inherit',
+                  color: isHL ? 'var(--accent-ink)' : 'inherit',
+                  fontWeight: isHL ? 700 : 'inherit',
+                  borderBottom: isHL ? '1.5px dotted var(--accent-deep)' : 'none',
+                  transition:'background .12s',
+                }}>
+                {w}
+              </span>
+            );
+          })}
+        </p>
+        {active && (
+          <span style={{flexShrink:0,marginTop:2}}>
+            <Icon name="headphones" size={14} color="var(--accent-deep)"/>
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ── Transcript panel ─────────────────────────────────────────────── */
+function TranscriptPanel({ currentId, onJump, onWord, t }) {
+  const ref = useRef(null);
+  useEffect(()=>{
+    if(!t.autoScroll || !ref.current) return;
+    const el = ref.current.querySelector(`[data-sid="${currentId}"]`);
+    if(el) el.scrollIntoView({ behavior:'smooth', block:'center' });
+  },[currentId, t.autoScroll]);
+
+  return (
+    <div className="glass scroll" style={{flex:1,overflowY:'auto',borderRadius:'var(--r-lg)'}} ref={ref}>
+      <div style={{padding:'20px 16px 28px'}}>
+        {/* header */}
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:18}}>
+          <div>
+            <div className="label-cap" style={{color:'var(--accent-deep)'}}>Bản ghi âm</div>
+            <div style={{fontSize:12.5,color:'var(--ink-3)',marginTop:3}}>
+              {SENTENCES.length} câu · nhấn câu để phát · nhấn từ nổi bật để xem nghĩa
+            </div>
+          </div>
+          <div style={{display:'flex',gap:5}}>
+            <span className="chip chip-accent" style={{fontSize:11}}>
+              <Icon name="book" size={13}/> IELTS Academic
+            </span>
+            <span className="chip" style={{fontSize:11}}>
+              <Icon name="list" size={13}/> Section 4
+            </span>
+          </div>
+        </div>
+
+        {/* progress bar */}
+        <div className="bar" style={{marginBottom:18}}>
+          <i style={{width:`${((currentId+1)/SENTENCES.length*100).toFixed(1)}%`}}/>
+        </div>
+
+        {/* sentences */}
+        {SENTENCES.map(s=>(
+          <div key={s.id} data-sid={s.id}>
+            <SentenceRow s={s} active={s.id===currentId}
+              fontSize={t.transcriptSize} vocabHL={t.vocabHighlight}
+              onJump={onJump} onWord={onWord}/>
+          </div>
+        ))}
+        <div style={{height:12}}/>
+      </div>
+    </div>
+  );
+}
+
+/* ── Pomodoro ─────────────────────────────────────────────────────── */
+function Pomodoro({ t }) {
+  const [mode, setMode] = useState('focus');
+  const [running, setRunning] = useState(false);
+  const [sessions, setSessions] = useState(0);
+  const durations = useMemo(()=>({ focus:t.pomoWork*60, short:t.pomoShort*60, long:t.pomoLong*60 }),[t.pomoWork,t.pomoShort,t.pomoLong]);
+  const [left, setLeft] = useState(()=>t.pomoWork*60);
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
+
+  useEffect(()=>{ setLeft(durations[mode]); },[mode]);
+  useEffect(()=>{ if(!running) return; },[t.pomoWork, t.pomoShort, t.pomoLong]);
+
+  useEffect(()=>{
+    if(!running) return;
+    const id = setInterval(()=>{
+      setLeft(v=>{
+        if(v<=1){
+          clearInterval(id);
+          setRunning(false);
+          if(modeRef.current==='focus') setSessions(s=>Math.min(s+1,4));
+          return 0;
+        }
+        return v-1;
+      });
+    },1000);
+    return()=>clearInterval(id);
+  },[running]);
+
+  const total = durations[mode] || 1;
+  const progress = 1 - left/total;
+  const R = 42, C = 2*Math.PI*R, offset = C*(1-progress);
+  const mm = String(Math.floor(left/60)).padStart(2,'0');
+  const ss = String(left%60).padStart(2,'0');
+
+  const MODES = [
+    { k:'focus', label:'Tập trung', color:'var(--accent-deep)' },
+    { k:'short', label:'Nghỉ ngắn', color:'var(--info)' },
+    { k:'long',  label:'Nghỉ dài',  color:'var(--good)' },
+  ];
+  const mc = MODES.find(m=>m.k===mode);
+
+  const reset = () => { setRunning(false); setLeft(durations[mode]); };
+
+  return (
+    <div className="glass-2 rise" style={{padding:'16px 15px',borderRadius:'var(--r-lg)',animationDelay:'80ms'}}>
+      <div className="label-cap" style={{color:'var(--accent-deep)',marginBottom:10}}>Pomodoro</div>
+
+      {/* mode tabs */}
+      <div style={{display:'flex',gap:4,marginBottom:14}}>
+        {MODES.map(m=>(
+          <button key={m.k}
+            onClick={()=>{ if(!running){ setMode(m.k); } }}
+            style={{
+              flex:1, padding:'5px 3px', borderRadius:'var(--r-sm)', fontSize:10.5,
+              fontWeight:700, border:'none', cursor:'pointer', transition:'all 140ms',
+              background: mode===m.k ? 'var(--accent)' : 'rgba(40,55,30,.07)',
+              color: mode===m.k ? 'var(--accent-ink)' : 'var(--ink-3)',
+              opacity: running && mode!==m.k ? 0.5 : 1,
+            }}>{m.label}</button>
+        ))}
+      </div>
+
+      {/* ring timer */}
+      <div style={{display:'grid',placeItems:'center',margin:'2px 0 10px'}}>
+        <div className={running?'pomo-running':''} style={{position:'relative',width:106,height:106,display:'grid',placeItems:'center'}}>
+          <svg width={106} height={106} style={{transform:'rotate(-90deg)'}}>
+            <circle cx={53} cy={53} r={R} className="pomo-ring-track"/>
+            <circle cx={53} cy={53} r={R} className="pomo-ring-fill"
+              stroke={mc.color} strokeDasharray={C} strokeDashoffset={offset}/>
+          </svg>
+          <div style={{position:'absolute',textAlign:'center'}}>
+            <div style={{fontFamily:'var(--font-mono)',fontSize:28,fontWeight:700,color:'var(--ink)',lineHeight:1,letterSpacing:'-0.04em'}}>{mm}:{ss}</div>
+            <div style={{fontSize:9.5,color:'var(--ink-3)',fontWeight:800,marginTop:2,letterSpacing:'.04em',textTransform:'uppercase'}}>{mc.label}</div>
+          </div>
+        </div>
+      </div>
+
+      {/* session dots */}
+      <div style={{display:'flex',justifyContent:'center',gap:7,marginBottom:12}}>
+        {Array.from({length:4}).map((_,i)=>(
+          <div key={i} style={{
+            width:9, height:9, borderRadius:'50%',
+            background: i < sessions ? 'var(--accent-deep)' : 'rgba(40,55,30,.14)',
+            transition:'background .35s',
+          }}/>
+        ))}
+      </div>
+
+      {/* controls */}
+      <div style={{display:'flex',gap:7}}>
+        <button onClick={()=>setRunning(r=>!r)} className="btn btn-primary btn-sm"
+          style={{flex:1, gap:5, fontSize:12}}>
+          <Icon name={running?'pause':'play'} size={13} fill/>
+          {running ? 'Tạm dừng' : 'Bắt đầu'}
+        </button>
+        <button onClick={reset} className="btn btn-soft btn-sm" style={{padding:'8px 11px'}} title="Đặt lại">
+          <Icon name="repeat" size={14}/>
+        </button>
+      </div>
+
+      <div style={{marginTop:9,fontSize:11,color:'var(--ink-3)',textAlign:'center',lineHeight:1.4}}>
+        {sessions < 4
+          ? `${sessions}/4 phiên · còn ${4-sessions} phiên nữa nghỉ dài`
+          : '4/4 phiên hoàn thành · Nghỉ dài thôi!'}
+      </div>
+    </div>
+  );
+}
+
+/* ── Study stats sidebar ──────────────────────────────────────────── */
+function StudyStats({ currentId, savedWords }) {
+  return (
+    <div className="glass-2 rise" style={{padding:'14px 15px',borderRadius:'var(--r-lg)',animationDelay:'160ms'}}>
+      <div className="label-cap" style={{color:'var(--ink-3)',marginBottom:10}}>Buổi học này</div>
+      {[
+        ['book',  'Câu đã nghe', `${currentId+1} / ${SENTENCES.length}`],
+        ['check', 'Từ đã lưu',   `${savedWords} từ`],
+        ['flame', 'Streak',      '12 ngày'],
+      ].map(([ic,lb,val])=>(
+        <div key={lb} style={{
+          display:'flex',alignItems:'center',justifyContent:'space-between',
+          padding:'6px 0',borderBottom:'1px solid var(--glass-edge)',
+        }}>
+          <span style={{display:'flex',alignItems:'center',gap:6,fontSize:12.5,color:'var(--ink-2)'}}>
+            <Icon name={ic} size={14} color="var(--accent-deep)"/>{lb}
+          </span>
+          <span style={{fontSize:12.5,fontWeight:700,color:'var(--ink)'}}>{val}</span>
+        </div>
+      ))}
+      <div style={{marginTop:10}}>
+        <div className="bar">
+          <i style={{width:`${((currentId+1)/SENTENCES.length*100).toFixed(0)}%`}}/>
+        </div>
+        <div style={{fontSize:10.5,color:'var(--ink-3)',marginTop:5,textAlign:'right'}}>
+          {Math.round((currentId+1)/SENTENCES.length*100)}% hoàn thành
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Vocab tooltip ────────────────────────────────────────────────── */
+function VocabTip({ word, pos, onClose, onSave }) {
+  const def = VOCAB_DEFS[word];
+  if(!def) return null;
+  const left = Math.min(pos.x, window.innerWidth - 285);
+  const top = pos.y + 10;
+  return (
+    <div className="vocab-tip" style={{left, top}} onClick={e=>e.stopPropagation()}>
+      <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:8}}>
+        <div>
+          <div style={{fontSize:19,fontWeight:800,color:'var(--ink)',letterSpacing:'-0.025em',lineHeight:1}}>{word}</div>
+          <div style={{fontSize:12,color:'var(--ink-3)',fontFamily:'var(--font-mono)',marginTop:3}}>{def.ipa}</div>
+        </div>
+        <button onClick={onClose} style={{color:'var(--ink-3)',padding:4,marginTop:-2}}>
+          <Icon name="close" size={16}/>
+        </button>
+      </div>
+      <div style={{
+        display:'inline-block',fontSize:12,color:'var(--info)',fontWeight:700,
+        background:'rgba(106,166,196,.12)',padding:'2px 8px',borderRadius:'var(--r-sm)',marginBottom:7,
+      }}>{def.vn}</div>
+      <div style={{fontSize:13.5,color:'var(--ink-2)',lineHeight:1.55}}>{def.def}</div>
+      <button onClick={()=>onSave(word)} className="btn btn-soft btn-sm" style={{marginTop:11,gap:5,fontSize:12}}>
+        <Icon name="bookmark" size={13}/> Lưu từ này
+      </button>
+    </div>
+  );
+}
+
+/* ── Tweaks panel ─────────────────────────────────────────────────── */
+function TweaksPanel({ open, onClose, t, setTweak }) {
+  function Slider({ label, k, min, max, step=1, unit='' }) {
+    return (
+      <div className="tw-row">
+        <div className="tw-lbl">
+          <span>{label}</span>
+          <span className="tw-val">{typeof t[k]==='number'&&step<1?t[k].toFixed(2):t[k]}{unit}</span>
+        </div>
+        <input type="range" className="tw-slider" min={min} max={max} step={step}
+          value={t[k]} onChange={e=>setTweak(k,+e.target.value)}/>
+      </div>
+    );
+  }
+  function Toggle({ label, k }) {
+    return (
+      <div className="tw-row tw-row-h">
+        <span style={{fontSize:12,fontWeight:500,color:'rgba(41,38,27,.8)'}}>{label}</span>
+        <button type="button" className="tw-toggle" data-on={t[k]?'1':'0'}
+          onClick={()=>setTweak(k,!t[k])}><i/></button>
+      </div>
+    );
+  }
+  function Seg({ label, k, options }) {
+    const strs = options.map(String);
+    const idx = Math.max(0, strs.indexOf(String(t[k])));
+    const n = options.length;
+    return (
+      <div className="tw-row">
+        <div className="tw-lbl"><span>{label}</span></div>
+        <div className="tw-seg">
+          <div className="tw-seg-thumb" style={{
+            left:`calc(2px + ${idx} * (100% - 4px) / ${n})`,
+            width:`calc((100% - 4px) / ${n})`,
+          }}/>
+          {options.map((o,i)=>(
+            <button key={i} type="button" className={t[k]===o?'active':''}
+              onClick={()=>setTweak(k,o)}>{String(o)}</button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+  function NumStepper({ label, k, min, max, unit='' }) {
+    return (
+      <div className="tw-row">
+        <div className="tw-lbl"><span>{label}</span></div>
+        <div className="tw-num-row">
+          <button className="tw-num-btn" onClick={()=>setTweak(k,Math.max(min,t[k]-1))}>−</button>
+          <span className="tw-num-val">{t[k]}<span className="tw-num-unit"> {unit}</span></span>
+          <button className="tw-num-btn" onClick={()=>setTweak(k,Math.min(max,t[k]+1))}>+</button>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className={`tweaks-overlay${open?' open':''}`} onClick={onClose}>
+      <div className="tweaks-backdrop"/>
+      <div className="tweaks-drawer" onClick={e=>e.stopPropagation()}>
+        {/* header */}
+        <div className="tweaks-head">
+          <div style={{display:'flex',alignItems:'center',gap:9}}>
+            <span style={{
+              width:30,height:30,borderRadius:'var(--r-sm)',background:'rgba(170,203,79,.18)',
+              display:'grid',placeItems:'center',color:'var(--accent-deep)',
+            }}>
+              <Icon name="settings" size={16}/>
+            </span>
+            <span style={{fontSize:14,fontWeight:800,color:'#29261b'}}>Tùy chỉnh giao diện</span>
+          </div>
+          <button onClick={onClose} style={{color:'rgba(41,38,27,.4)',padding:4}}>
+            <Icon name="close" size={18}/>
+          </button>
+        </div>
+
+        {/* body */}
+        <div className="tweaks-body">
+
+          <div className="tw-sect">Nghe &amp; Bản ghi</div>
+          <Seg label="Tốc độ mặc định" k="defaultSpeed" options={[0.75,1,1.25,1.5]}/>
+          <Slider label="Cỡ chữ bản ghi" k="transcriptSize" min={12} max={20} unit=" px"/>
+          <Seg label="Lặp lại" k="repeatMode" options={['off','câu','đoạn']}/>
+          <Toggle label="Tự cuộn bản ghi" k="autoScroll"/>
+          <Toggle label="Bôi nổi từ vựng" k="vocabHighlight"/>
+
+          <div className="tw-sect">Pomodoro</div>
+          <NumStepper label="Thời gian tập trung" k="pomoWork" min={5} max={60} unit="phút"/>
+          <NumStepper label="Nghỉ ngắn" k="pomoShort" min={1} max={15} unit="phút"/>
+          <NumStepper label="Nghỉ dài" k="pomoLong" min={10} max={30} unit="phút"/>
+          <Toggle label="Tự bắt đầu nghỉ giải lao" k="pomoAutoBreak"/>
+
+          <div className="tw-sect">Giao diện</div>
+          <div className="tw-row">
+            <div className="tw-lbl"><span>Màu accent</span></div>
+            <div className="tw-color-row">
+              {ACCENTS.map(a=>(
+                <button key={a} className={`tw-color-btn${t.accent===a?' active':''}`}
+                  style={{background:a}} onClick={()=>setTweak('accent',a)} title={a}/>
+              ))}
+            </div>
+          </div>
+          <Slider label="Độ tối nền" k="overlay" min={0.1} max={0.68} step={0.02}/>
+          <Slider label="Độ mờ kính" k="glassBlur" min={4} max={36} unit=" px"/>
+          <Slider label="Độ trong suốt panel" k="glassAlpha" min={0.4} max={0.95} step={0.02}/>
+          <Toggle label="Hiệu ứng mưa rơi" k="rain"/>
+
+          {/* reset */}
+          <div style={{marginTop:8}}>
+            <button onClick={()=>{/* reset handled by parent if needed */}}
+              className="btn btn-soft btn-sm" style={{width:'100%',justifyContent:'center',fontSize:12}}>
+              <Icon name="repeat" size={13}/> Khôi phục mặc định
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Top bar ──────────────────────────────────────────────────────── */
+function TopBar({ onTweaks }) {
+  return (
+    <div className="darkglass" style={{
+      position:'absolute', top:0, left:0, right:0, height:60,
+      display:'flex', alignItems:'center', padding:'0 20px', gap:12,
+      borderRadius:'0 0 var(--r-lg) var(--r-lg)', zIndex:20,
+    }}>
+      {/* back */}
+      <button className="iconbtn" style={{width:34,height:34}} title="Quay lại">
+        <Icon name="chevL" size={17}/>
+      </button>
+
+      {/* title */}
+      <div style={{display:'flex',alignItems:'center',gap:9}}>
+        <span style={{
+          width:32,height:32,borderRadius:'var(--r-sm)',
+          background:'var(--accent)',color:'var(--accent-ink)',
+          display:'grid',placeItems:'center',boxShadow:'var(--sh-glow)',flexShrink:0,
+        }}>
+          <Icon name="headphones" size={17}/>
+        </span>
+        <div>
+          <div style={{fontSize:13.5,fontWeight:800,color:'#fff',lineHeight:1.1}}>Luyện nghe</div>
+          <div style={{fontSize:10.5,color:'rgba(255,255,255,.45)',marginTop:1}}>IELTS Academic · Shadowing</div>
+        </div>
+      </div>
+
+      <div style={{flex:1}}/>
+
+      {/* streak chip */}
+      <span className="chip chip-dark" style={{fontSize:11.5,gap:5}}>
+        <Icon name="flame" size={13} fill color="#e08a3b"/> Streak 12 ngày
+      </span>
+
+      {/* settings */}
+      <button onClick={onTweaks} className="iconbtn" style={{width:34,height:34}} title="Tùy chỉnh giao diện (Tweaks)">
+        <Icon name="settings" size={16}/>
+      </button>
+    </div>
+  );
+}
+
+/* ── App ──────────────────────────────────────────────────────────── */
+function App() {
+  const [t, setTweakState] = useState(DEFAULTS);
+  const [tweaksOpen, setTweaksOpen] = useState(false);
+  const [playing, setPlaying] = useState(false);
+  const [speed, setSpeed] = useState(1);
+  const [currentId, setCurrentId] = useState(0);
+  const [elapsed, setElapsed] = useState(0);
+  const [vocab, setVocab] = useState(null);
+  const [repeat, setRepeat] = useState(false);
+  const [shadowing, setShadowing] = useState(false);
+  const [savedWords, setSavedWords] = useState(0);
+
+  const setTweak = useCallback((k, v) => setTweakState(p=>({...p,[k]:v})), []);
+
+  // apply tweaks → CSS vars
+  useEffect(()=>{
+    const r = document.documentElement.style;
+    r.setProperty('--accent', t.accent);
+    r.setProperty('--accent-strong', shadeHex(t.accent,-8));
+    r.setProperty('--accent-deep',   shadeHex(t.accent,-22));
+    r.setProperty('--overlay', String(t.overlay));
+    r.setProperty('--glass-blur', t.glassBlur+'px');
+    r.setProperty('--glass-alpha', String(t.glassAlpha));
+    r.setProperty('--glass', `rgba(255,255,255,${t.glassAlpha})`);
+    r.setProperty('--glass-2', `rgba(255,255,255,${Math.max(0.32,t.glassAlpha-0.16)})`);
+    r.setProperty('--font', `'${t.font}',ui-sans-serif,system-ui,sans-serif`);
+  },[t]);
+
+  // playback tick
+  useEffect(()=>{
+    if(!playing) return;
+    const total = SENTENCES[SENTENCES.length-1].end;
+    const id = setInterval(()=>{
+      setElapsed(e=>{
+        const next = e + speed * 0.25;
+        if(next >= total){ setPlaying(false); return total; }
+        return next;
+      });
+    },250);
+    return()=>clearInterval(id);
+  },[playing,speed]);
+
+  // sync sentence
+  useEffect(()=>{
+    const s = SENTENCES.find(s=>elapsed>=s.start && elapsed<s.end);
+    if(s && s.id!==currentId) setCurrentId(s.id);
+  },[elapsed]);
+
+  const total = SENTENCES[SENTENCES.length-1].end;
+  const progress = elapsed / total;
+
+  const onJump = id => {
+    setCurrentId(id);
+    setElapsed(SENTENCES[id].start + 0.1);
+  };
+  const onWord = (word, e) => {
+    const rect = e.target.getBoundingClientRect();
+    setVocab({ word, pos:{ x:rect.left, y:rect.bottom } });
+  };
+  const onSeek = p => {
+    const t2 = p * total;
+    setElapsed(t2);
+    const s = SENTENCES.find(s=>t2>=s.start && t2<s.end);
+    if(s) setCurrentId(s.id);
+  };
+  const onPrev = () => { if(currentId>0) onJump(currentId-1); };
+  const onNext = () => { if(currentId<SENTENCES.length-1) onJump(currentId+1); };
+  const onSave = word => { setSavedWords(n=>n+1); setVocab(null); };
+
+  return (
+    <div id="stage" onClick={()=>setVocab(null)}>
+      <div id="bg-layer"><div id="bg-gradient"/></div>
+      <div id="bg-overlay"/>
+      <Rain on={t.rain}/>
+      <div id="app-root">
+        <TopBar onTweaks={()=>setTweaksOpen(true)}/>
+
+        {/* main layout */}
+        <div className="screen" style={{
+          paddingTop:68, paddingBottom:152, paddingLeft:20, paddingRight:20,
+          display:'flex', gap:14, overflow:'hidden', height:'100%',
+        }}>
+          {/* left column */}
+          <div style={{width:218,flexShrink:0,display:'flex',flexDirection:'column',gap:12,paddingTop:8,overflowY:'auto'}}
+            className="scroll">
+            <Pomodoro t={t}/>
+            <StudyStats currentId={currentId} savedWords={savedWords}/>
+          </div>
+
+          {/* transcript */}
+          <TranscriptPanel currentId={currentId} onJump={onJump} onWord={onWord} t={t}/>
+        </div>
+
+        {/* audio player */}
+        <AudioPlayer
+          playing={playing} onPlayPause={()=>setPlaying(p=>!p)}
+          speed={speed} onSpeed={v=>{ setSpeed(v); setTweak('defaultSpeed',v); }}
+          progress={progress} onSeek={onSeek}
+          onPrev={onPrev} onNext={onNext}
+          repeat={repeat} onRepeat={()=>setRepeat(r=>!r)}
+          shadowing={shadowing} onShadow={()=>setShadowing(s=>!s)}
+        />
+      </div>
+
+      {/* tweaks */}
+      <TweaksPanel open={tweaksOpen} onClose={()=>setTweaksOpen(false)} t={t} setTweak={setTweak}/>
+
+      {/* vocab tooltip */}
+      {vocab && (
+        <VocabTip word={vocab.word} pos={vocab.pos}
+          onClose={()=>setVocab(null)} onSave={onSave}/>
+      )}
+    </div>
+  );
+}
+
+/* ── Helpers ──────────────────────────────────────────────────────── */
+function shadeHex(hex, pct) {
+  const h = hex.replace('#','');
+  if(h.length!==6) return hex;
+  const n = parseInt(h,16);
+  const clamp = v => Math.max(0,Math.min(255,v+Math.round(255*pct/100)));
+  const r=clamp((n>>16)&255), g=clamp((n>>8)&255), b=clamp(n&255);
+  return '#'+[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('');
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

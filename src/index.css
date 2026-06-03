@@ -97,7 +97,10 @@ input, textarea { font-family: inherit; }
   background-color: #0e1a0c;
 }
 
-/* Overlay gradient — warm lo-fi tint over GIF */
+/* Overlay gradient — warm lo-fi tint over GIF.
+   All opacity values scale with --overlay (unitless 0–0.7).
+   Coefficients derived from default --overlay:0.34 so the visual
+   result is identical at the default value. */
 .lofi-overlay {
   position: absolute;
   inset: 0;
@@ -106,11 +109,13 @@ input, textarea { font-family: inherit; }
   background:
     radial-gradient(ellipse 55% 45% at 15% 88%, rgba(200,140,50,0.28) 0%, transparent 60%),
     radial-gradient(ellipse 45% 55% at 82% 12%, rgba(90,150,110,0.22) 0%, transparent 58%),
-    radial-gradient(120% 90% at 50% 16%, rgba(10,16,6,0) 30%, rgba(10,16,6,0.28) 100%),
+    radial-gradient(120% 90% at 50% 16%,
+      rgba(10,16,6,0) 30%,
+      rgba(10,16,6,calc(var(--overlay) * 0.82)) 100%),
     linear-gradient(180deg,
-      rgba(10,16,6,0.42) 0%,
-      rgba(10,16,6,0.22) 45%,
-      rgba(10,16,6,0.50) 100%);
+      rgba(10,16,6,calc(var(--overlay) * 1.24)) 0%,
+      rgba(10,16,6,calc(var(--overlay) * 0.65)) 45%,
+      rgba(10,16,6,calc(var(--overlay) * 1.47)) 100%);
 }
 
 /* Rain layer */
@@ -147,8 +152,8 @@ input, textarea { font-family: inherit; }
 
 .glass-2 {
   background: var(--glass-2);
-  -webkit-backdrop-filter: blur(14px) saturate(1.2);
-  backdrop-filter: blur(14px) saturate(1.2);
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) - 4px)) saturate(1.2);
+  backdrop-filter: blur(calc(var(--glass-blur) - 4px)) saturate(1.2);
   border: 1px solid var(--glass-line);
   box-shadow: var(--sh-sm), inset 0 1px 0 rgba(255,255,255,0.5);
   border-radius: var(--r-md);

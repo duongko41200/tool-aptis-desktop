@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
 import { getSettings, saveSettings } from '../../services/tauriCommands';
 import type { EvaluationMode } from '../../types';
+import { useTweaks } from '../../contexts/TweaksContext';
+import Icon from '../common/Icon';
 
 export default function SettingsScreen() {
+  const { openTweaks } = useTweaks();
   const [apiKey, setApiKey] = useState('');
   const [clipboardEnabled, setClipboardEnabled] = useState(false);
   const [ttsVoice, setTtsVoice] = useState('');
@@ -48,6 +51,34 @@ export default function SettingsScreen() {
   return (
     <div style={{ maxWidth: 560, margin: '0 auto', padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
       <h1 style={{ margin: 0, fontSize: 22, fontWeight: 900, color: 'var(--text-primary)' }}>Settings</h1>
+
+      {/* UI Customization — Tweaks */}
+      <Section title="Giao diện">
+        <button onClick={openTweaks}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 12, padding: '13px 16px',
+            borderRadius: 12, background: 'rgba(217,232,157,.2)',
+            border: '1px solid rgba(170,203,79,.35)',
+            cursor: 'pointer', width: '100%', textAlign: 'left',
+            transition: 'background 140ms',
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(217,232,157,.35)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(217,232,157,.2)'; }}
+        >
+          <span style={{
+            width: 36, height: 36, borderRadius: 10,
+            background: 'var(--accent)', color: 'var(--accent-ink)',
+            display: 'grid', placeItems: 'center', flexShrink: 0,
+          }}>
+            <Icon name="sparkle" size={18} />
+          </span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)' }}>Tùy chỉnh giao diện</div>
+            <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 2 }}>Màu accent, độ tối, glass, font chữ</div>
+          </div>
+          <Icon name="chevR" size={16} style={{ color: 'var(--accent-deep)' }} />
+        </button>
+      </Section>
 
       <Section title="AI Configuration">
         <div>

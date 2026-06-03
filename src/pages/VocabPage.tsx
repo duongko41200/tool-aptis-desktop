@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useQueryClient } from '@tanstack/react-query';
 import { setPendingVocabWord } from '../store/appSlice';
@@ -7,6 +7,7 @@ import {
   useDecks, useDueCards, useNotesForDeck,
   useSubmitRating, useBuryCard, useSuspendCard,
   useCreateNote, useCreateDeck, useDeleteDeck,
+  useDeckSession, useSaveDeckSession,
 } from '../hooks/useAnki';
 import type { Card, Deck, CardRating, TemplateType } from '../types/anki';
 import TopBar from '../components/layout/TopBar';
@@ -331,22 +332,13 @@ const RATING_STYLE: Record<CardRating, { label: string; bg: string; color: strin
   good:  { label: 'Được', bg: 'rgba(111,174,90,0.18)',  color: 'var(--good)'   },
   easy:  { label: 'Dễ',   bg: 'rgba(217,232,157,0.45)', color: 'var(--accent-deep)' },
 };
-function RatingBadge({ rating }: { rating: CardRating }) {
-  const s = RATING_STYLE[rating];
-  return (
-    <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase',
-      padding: '2px 8px', borderRadius: 'var(--r-pill)', background: s.bg, color: s.color, flexShrink: 0 }}>
-      {s.label}
-    </span>
-  );
-}
 
 /* ── NOTES PANEL ──────────────────────────────────── */
 interface NotesPanelProps {
   selectedDeckId: number | null;
   decks: Deck[];
   dueCards: Card[];
-  sessionStats: { again: number; hard: number; good: number; easy: number } | null;
+  sessionStats: { again: number; hard: number; good: number; easy: number };
   sessionRatings: Map<number, CardRating>;
   onAddNote: () => void;
   isReviewing: boolean;
@@ -357,74 +349,85 @@ function NotesPanel({ selectedDeckId, decks, dueCards, sessionStats, sessionRati
   const notes = notesData ?? [];
   const deck = decks.find(d => d.id === selectedDeckId);
 
-  // Build note_id → worst state map from due cards
-  // 'new' < 'learning' < 'review' (priority: show least-progressed state)
+  // note_id → worst card state among due cards
   const stateOrder = { new: 0, learning: 1, review: 2 } as const;
   const noteStateMap = new Map<number, Card['state']>();
   for (const c of dueCards) {
-    const noteId = c.note_id;
-    const prev = noteStateMap.get(noteId);
-    if (!prev || stateOrder[c.state] < stateOrder[prev]) noteStateMap.set(noteId, c.state);
+    const prev = noteStateMap.get(c.note_id);
+    if (!prev || stateOrder[c.state] < stateOrder[prev]) noteStateMap.set(c.note_id, c.state);
   }
 
-  const LEVEL_STATS = deck ? [
-    { label: 'Mới',    v: deck.new_count,      color: 'var(--info)',       bg: 'rgba(106,166,196,0.15)' },
-    { label: 'Học',    v: deck.learning_count,  color: 'var(--warn)',       bg: 'rgba(224,169,59,0.15)'  },
-    { label: 'Ôn tập', v: deck.review_count,    color: 'var(--good)',       bg: 'rgba(111,174,90,0.15)'  },
-  ] : [];
+  // total rated this session
+  const sessionTotal = sessionStats.again + sessionStats.hard + sessionStats.good + sessionStats.easy;
+  const hasSession   = sessionTotal > 0;
+
+  // 4 session-rating boxes
+  const SESSION_LEVEL = [
+    { r: 'again' as CardRating, label: 'Lại',  v: sessionStats.again },
+    { r: 'hard'  as CardRating, label: 'Khó',  v: sessionStats.hard  },
+    { r: 'good'  as CardRating, label: 'Được', v: sessionStats.good  },
+    { r: 'easy'  as CardRating, label: 'Dễ',   v: sessionStats.easy  },
+  ];
 
   return (
     <div className="glass" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      <div style={{ padding: '16px 16px 12px', borderBottom: '1px solid var(--glass-edge)' }}>
+      {/* Header */}
+      <div style={{ padding: '14px 16px 12px', borderBottom: '1px solid var(--glass-edge)' }}>
         <div className="label-cap" style={{ color: 'var(--accent-deep)', marginBottom: 2 }}>Kho từ</div>
-        {deck && <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)', marginTop: 4 }}>{deck.name}</div>}
+        {deck && <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)', marginTop: 3 }}>{deck.name}</div>}
       </div>
 
-      {/* Deck-level statistics — always visible when deck selected */}
-      {deck && LEVEL_STATS.some(s => s.v > 0) && (
-        <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--glass-edge)', display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 6 }}>
-          {LEVEL_STATS.map(s => (
-            <div key={s.label} style={{ textAlign: 'center', padding: '7px 4px', borderRadius: 'var(--r-sm)', background: s.bg, border: `1px solid ${s.color}22` }}>
-              <div style={{ fontSize: 17, fontWeight: 800, color: s.color, fontFamily: 'var(--font-mono)' }}>{s.v}</div>
-              <div style={{ fontSize: 10, color: s.color, fontWeight: 700, opacity: 0.85 }}>{s.label}</div>
+      {/* ── Session rating stats — always visible ─────────── */}
+      {deck && (
+        <div style={{ padding: '12px 12px 10px', borderBottom: '1px solid var(--glass-edge)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <div className="label-cap" style={{ color: hasSession ? (isReviewing ? 'var(--accent-deep)' : 'var(--ink-2)') : 'var(--ink-3)' }}>
+              {isReviewing ? 'Đang ôn' : hasSession ? 'Kết quả phiên ôn' : 'Kết quả phiên ôn'}
             </div>
-          ))}
-        </div>
-      )}
-
-      {/* Session stats — shown whenever a review session is active or just ended */}
-      {sessionStats && (
-        <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--glass-edge)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 7 }}>
-            <div className="label-cap" style={{ color: isReviewing ? 'var(--accent-deep)' : 'var(--ink-3)' }}>
-              {isReviewing ? 'Kết quả theo từng từ' : 'Kết quả buổi ôn'}
-            </div>
-            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-3)', fontFamily: 'var(--font-mono)' }}>
-              {sessionStats.again + sessionStats.hard + sessionStats.good + sessionStats.easy} từ
-            </span>
+            {hasSession && (
+              <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--ink)', fontFamily: 'var(--font-mono)' }}>
+                {sessionTotal} từ
+              </span>
+            )}
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 5 }}>
-            {([
-              { r: 'again' as CardRating, label: 'Lại',  v: sessionStats.again },
-              { r: 'hard'  as CardRating, label: 'Khó',  v: sessionStats.hard  },
-              { r: 'good'  as CardRating, label: 'Được', v: sessionStats.good  },
-              { r: 'easy'  as CardRating, label: 'Dễ',   v: sessionStats.easy  },
-            ]).map(s => {
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 6 }}>
+            {SESSION_LEVEL.map(s => {
               const rs = RATING_STYLE[s.r];
               return (
-                <div key={s.label} style={{ textAlign: 'center', padding: '7px 4px', borderRadius: 'var(--r-md)', background: rs.bg, border: `1.5px solid ${rs.color}44` }}>
-                  <div style={{ fontSize: 18, fontWeight: 800, color: rs.color, fontFamily: 'var(--font-mono)', lineHeight: 1 }}>{s.v}</div>
-                  <div style={{ fontSize: 10, color: rs.color, fontWeight: 700, marginTop: 3, opacity: 0.9 }}>{s.label}</div>
-                  <div style={{ fontSize: 9, color: rs.color, fontWeight: 600, opacity: 0.6, marginTop: 1 }}>từ</div>
+                <div key={s.label} style={{
+                  textAlign: 'center', padding: '8px 4px',
+                  borderRadius: 'var(--r-sm)',
+                  background: hasSession ? rs.bg : 'rgba(40,55,30,0.04)',
+                  border: `1.5px solid ${hasSession ? rs.color + '55' : 'rgba(40,55,30,0.06)'}`,
+                }}>
+                  <div style={{
+                    fontSize: 22, fontWeight: 800, lineHeight: 1,
+                    color: hasSession ? rs.color : 'var(--ink-3)',
+                    fontFamily: 'var(--font-mono)',
+                  }}>
+                    {hasSession ? s.v : '—'}
+                  </div>
+                  <div style={{
+                    fontSize: 10, fontWeight: 700, marginTop: 4,
+                    color: hasSession ? rs.color : 'var(--ink-3)',
+                    letterSpacing: '0.04em', textTransform: 'uppercase',
+                  }}>
+                    {s.label}
+                  </div>
                 </div>
               );
             })}
           </div>
+          {!hasSession && (
+            <div style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 7, textAlign: 'center' }}>
+              Bắt đầu ôn để xem kết quả
+            </div>
+          )}
         </div>
       )}
 
       {/* Search */}
-      <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--glass-edge)' }}>
+      <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--glass-edge)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.6)', border: '1px solid var(--glass-edge)', borderRadius: 'var(--r-pill)', padding: '7px 12px' }}>
           <Icon name="search" size={14} style={{ color: 'var(--ink-3)', flexShrink: 0 }} />
           <input
@@ -436,7 +439,7 @@ function NotesPanel({ selectedDeckId, decks, dueCards, sessionStats, sessionRati
       </div>
 
       {/* Notes list */}
-      <div className="scroll" style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
+      <div className="scroll" style={{ flex: 1, overflowY: 'auto', padding: '6px 0' }}>
         {!selectedDeckId ? (
           <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--ink-3)', fontSize: 13 }}>
             Chọn một bộ thẻ để xem từ vựng.
@@ -450,28 +453,41 @@ function NotesPanel({ selectedDeckId, decks, dueCards, sessionStats, sessionRati
             <div style={{ fontSize: 12.5, color: 'var(--ink-3)', marginTop: 4 }}>Thêm từ mới để bắt đầu học.</div>
           </div>
         ) : notes.map(note => {
-          const state    = noteStateMap.get(note.id);
-          const rating   = sessionRatings.get(note.id);
+          const state  = noteStateMap.get(note.id);
+          const rating = sessionRatings.get(note.id);
+
+          // Resolve the level badge: session rating > due state > mastered
+          const badge = (() => {
+            if (rating) return RATING_STYLE[rating];
+            if (state === 'new')      return { label: 'Chưa học', bg: 'rgba(106,166,196,0.18)', color: 'var(--info)'       };
+            if (state === 'learning') return { label: 'Đang học',  bg: 'rgba(224,169,59,0.18)',  color: 'var(--warn)'       };
+            if (state === 'review')   return { label: 'Ôn tập',   bg: 'rgba(111,174,90,0.18)',  color: 'var(--good)'       };
+            return                           { label: 'NEW',    bg: 'rgba(217,232,157,0.25)', color: 'var(--accent-deep)' };
+          })();
+
           return (
-            <div key={note.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 14px', borderBottom: '1px solid var(--glass-edge)', transition: 'background 140ms var(--ease)' }}
+            <div key={note.id}
+              style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '9px 12px', borderBottom: '1px solid var(--glass-edge)', transition: 'background 140ms var(--ease)' }}
               onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = 'rgba(40,55,30,0.04)'; }}
               onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = 'transparent'; }}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 1 }}>
-                  <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>{note.front}</span>
-                  {/* Session rating badge — highest priority, shown if rated this session */}
-                  {rating ? (
-                    <RatingBadge rating={rating} />
-                  ) : state ? (
-                    <StateBadge state={state} />
-                  ) : (
-                    <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', padding: '2px 7px', borderRadius: 'var(--r-pill)', background: 'rgba(111,174,90,0.15)', color: 'var(--good)', flexShrink: 0 }}>
-                      Đã học
-                    </span>
-                  )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 1 }}>
+                  <span style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>
+                    {note.front}
+                  </span>
+                  {/* Level badge — always visible */}
+                  <span style={{
+                    fontSize: 9.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase',
+                    padding: '2px 8px', borderRadius: 'var(--r-pill)',
+                    background: badge.bg, color: badge.color, flexShrink: 0,
+                  }}>
+                    {badge.label}
+                  </span>
                 </div>
                 {note.back && (
-                  <div style={{ fontSize: 12.5, color: 'var(--ink-2)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{note.back}</div>
+                  <div style={{ fontSize: 12, color: 'var(--ink-2)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {note.back}
+                  </div>
                 )}
                 {note.tags && (
                   <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
@@ -487,7 +503,7 @@ function NotesPanel({ selectedDeckId, decks, dueCards, sessionStats, sessionRati
       </div>
 
       {/* Add note button */}
-      <div style={{ padding: 12, borderTop: '1px solid var(--glass-edge)' }}>
+      <div style={{ padding: 10, borderTop: '1px solid var(--glass-edge)' }}>
         <button onClick={onAddNote} disabled={!selectedDeckId} className="btn btn-primary btn-sm" style={{ width: '100%', opacity: selectedDeckId ? 1 : 0.45 }}>
           <Icon name="plus" size={14} /> Thêm từ mới
         </button>
@@ -630,6 +646,313 @@ function NoteEditorModal({ deckId, initialFront, initialBack, onClose }: {
   );
 }
 
+/* ── DECK LEVEL CHART ─────────────────────────────── */
+interface LevelBar { label: string; v: number; color: string; bar: string; }
+
+function DeckLevelChart({
+  bars, totalNotes, selectedLabel, onBarClick,
+}: {
+  bars: LevelBar[];
+  totalNotes: number;
+  selectedLabel: string | null;
+  onBarClick: (label: string | null) => void;
+}) {
+  const grandMax = Math.max(...bars.map(b => b.v), 1);
+  const MAX_H = 128;
+
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(false);
+    const t = setTimeout(() => setMounted(true), 60);
+    return () => clearTimeout(t);
+  }, [bars]);
+
+  return (
+    <div className="glass rise" style={{ padding: '20px 22px', animationDelay: '80ms' }}>
+      {/* header */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 }}>
+        <div>
+          <div className="label-cap" style={{ color: 'var(--accent-deep)' }}>Phân bố cấp độ</div>
+          <div style={{ fontSize: 12.5, color: 'var(--ink-3)', marginTop: 3 }}>
+            {selectedLabel
+              ? `Nhấn lại để bỏ chọn · nhấn cột khác để chuyển`
+              : 'Nhấn vào cột để xem danh sách từ'}
+          </div>
+        </div>
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, color: 'var(--ink-3)' }}>
+          {totalNotes} từ
+        </span>
+      </div>
+
+      {/* bars */}
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10 }}>
+        {bars.map(b => {
+          const isSelected = b.label === selectedLabel;
+          const isDimmed   = selectedLabel !== null && !isSelected;
+          const h = mounted
+            ? Math.max(b.v > 0 ? 10 : 3, Math.round((b.v / grandMax) * MAX_H))
+            : 3;
+          const activeColor = b.v > 0 ? b.color : 'var(--ink-3)';
+          return (
+            <div
+              key={b.label}
+              onClick={() => onBarClick(isSelected ? null : b.label)}
+              style={{
+                flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
+                cursor: b.v > 0 ? 'pointer' : 'default',
+                opacity: isDimmed ? 0.38 : 1,
+                transition: 'opacity 200ms var(--ease)',
+              }}
+            >
+              {/* count — số từ */}
+              <div style={{
+                minHeight: 40, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', marginBottom: 7,
+              }}>
+                <div style={{
+                  fontSize: 26, fontWeight: 800, fontFamily: 'var(--font-mono)', lineHeight: 1,
+                  color: isSelected ? activeColor : (b.v > 0 ? activeColor : 'var(--ink-3)'),
+                }}>
+                  {b.v}
+                </div>
+              </div>
+
+              {/* bar body */}
+              <div style={{
+                width: '100%', height: h, borderRadius: '7px 7px 2px 2px',
+                background: b.v > 0 ? b.bar : 'rgba(40,55,30,0.08)',
+                transition: 'height 650ms var(--ease)',
+                position: 'relative', overflow: 'hidden',
+                outline: isSelected ? `2.5px solid ${b.color}` : 'none',
+                outlineOffset: 2,
+              }}>
+                {b.v > 0 && (
+                  <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(255,255,255,0.22) 0%, transparent 55%)' }} />
+                )}
+              </div>
+              <div style={{
+                width: '100%', height: 3, marginBottom: 9,
+                background: b.v > 0 ? b.bar : 'rgba(40,55,30,0.08)',
+                borderRadius: '0 0 4px 4px',
+              }} />
+
+              {/* label */}
+              <div style={{
+                fontSize: 12, fontWeight: 800, textAlign: 'center',
+                color: isSelected ? activeColor : (b.v > 0 ? activeColor : 'var(--ink-3)'),
+              }}>
+                {b.label}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {bars.every(b => b.v === 0) && (
+        <div style={{ textAlign: 'center', marginTop: 12, fontSize: 13, color: 'var(--ink-3)' }}>
+          Bắt đầu ôn để xem phân bố cấp độ
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── LEVEL WORD MODAL ─────────────────────────────── */
+const LABEL_TO_RATING: Record<string, string> = {
+  'Lại': 'again', 'Khó': 'hard', 'Được': 'good', 'Dễ': 'easy',
+};
+
+const LABEL_META: Record<string, { icon: string; desc: string }> = {
+  'Chưa ôn': { icon: 'sparkle', desc: 'Chưa được ôn lần nào' },
+  'Lại':     { icon: 'refresh', desc: 'Cần ôn lại nhiều lần'  },
+  'Khó':     { icon: 'clock',   desc: 'Đang học, còn khó'     },
+  'Được':    { icon: 'check',   desc: 'Học tốt, ôn định kỳ'   },
+  'Dễ':      { icon: 'star',    desc: 'Đã thuộc, nhớ lâu'     },
+};
+
+function LevelWordModal({
+  label, color, notes, ratings, onClose,
+}: {
+  label: string;
+  color: string;
+  notes: import('../types/anki').Note[];
+  ratings: Map<number, CardRating>;
+  onClose: () => void;
+}) {
+  const ratingKey = LABEL_TO_RATING[label];
+  const meta      = LABEL_META[label] ?? { icon: 'cards', desc: '' };
+
+  const filtered = notes.filter(note => {
+    const r = ratings.get(note.id);
+    if (label === 'Chưa ôn') return r === undefined;
+    return r === ratingKey;
+  });
+
+  // Đóng bằng Escape
+  useEffect(() => {
+    const fn = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', fn);
+    return () => window.removeEventListener('keydown', fn);
+  }, [onClose]);
+
+  return (
+    <div
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 70,
+        display: 'grid', placeItems: 'center', padding: 24,
+        background: 'rgba(8,12,4,0.48)',
+        backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)',
+        animation: 'screen-in 280ms var(--ease) both',
+      }}
+    >
+      <div
+        className="glass"
+        style={{
+          width: 'min(580px, 96vw)',
+          maxHeight: 'min(74vh, 660px)',
+          borderRadius: 'var(--r-xl)',
+          overflow: 'hidden',
+          boxShadow: 'var(--sh-lg)',
+          display: 'flex', flexDirection: 'column',
+          animation: 'card-flip 300ms var(--ease) both',
+        }}
+      >
+        {/* ── Header ── */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 14,
+          padding: '18px 22px',
+          borderBottom: '1px solid var(--glass-edge)',
+          flexShrink: 0,
+        }}>
+          {/* icon chip */}
+          <span style={{
+            width: 44, height: 44, borderRadius: 'var(--r-md)',
+            background: `${color}1a`, border: `1.5px solid ${color}44`,
+            display: 'grid', placeItems: 'center', flexShrink: 0,
+          }}>
+            <Icon name={meta.icon} size={20} style={{ color }} />
+          </span>
+
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--ink)', letterSpacing: '-0.02em' }}>
+              Cấp độ: {label}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 3 }}>{meta.desc}</div>
+          </div>
+
+          {/* count badge */}
+          <span style={{
+            fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 800,
+            color, padding: '4px 13px', borderRadius: 'var(--r-pill)',
+            background: `${color}18`, border: `1px solid ${color}44`, flexShrink: 0,
+          }}>
+            {filtered.length} từ
+          </span>
+
+          <button
+            onClick={onClose}
+            className="iconbtn"
+            style={{ width: 34, height: 34, background: 'rgba(40,55,30,0.07)', color: 'var(--ink-2)', border: '1px solid var(--glass-edge)', flexShrink: 0 }}
+          >
+            <Icon name="close" size={16} />
+          </button>
+        </div>
+
+        {/* ── Body ── */}
+        {filtered.length === 0 ? (
+          <div style={{
+            flex: 1, display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center',
+            padding: '40px 24px', gap: 12,
+          }}>
+            <span style={{
+              width: 52, height: 52, borderRadius: 'var(--r-md)',
+              background: 'rgba(217,232,157,0.3)', color: 'var(--accent-ink)',
+              display: 'grid', placeItems: 'center',
+            }}>
+              <Icon name="cards" size={24} />
+            </span>
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)' }}>
+              Không có từ nào ở cấp này
+            </div>
+            <div style={{ fontSize: 12.5, color: 'var(--ink-3)', textAlign: 'center' }}>
+              {label === 'Chưa ôn'
+                ? 'Tất cả từ đã được ôn ít nhất một lần.'
+                : 'Ôn thêm để từ xuất hiện ở cấp độ này.'}
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* sub-header */}
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '9px 22px 7px',
+              borderBottom: '1px solid var(--glass-edge)',
+              flexShrink: 0,
+            }}>
+              <div className="label-cap" style={{ color: 'var(--ink-3)' }}>Danh sách từ</div>
+              <span style={{ fontSize: 11, color: 'var(--ink-3)', fontFamily: 'var(--font-mono)', fontWeight: 700 }}>
+                {filtered.length} / {notes.length}
+              </span>
+            </div>
+
+            {/* scrollable list */}
+            <div className="scroll" style={{ flex: 1, overflowY: 'auto' }}>
+              {filtered.map((note, i) => (
+                <div
+                  key={note.id}
+                  style={{
+                    display: 'flex', alignItems: 'flex-start', gap: 12,
+                    padding: '12px 22px',
+                    borderBottom: i < filtered.length - 1 ? '1px solid var(--glass-edge)' : 'none',
+                    transition: 'background 140ms var(--ease)',
+                  }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = 'rgba(40,55,30,0.04)'; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = 'transparent'; }}
+                >
+                  {/* index */}
+                  <span style={{
+                    fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700,
+                    color: 'var(--ink-3)', minWidth: 26, paddingTop: 2, flexShrink: 0,
+                  }}>
+                    {String(i + 1).padStart(2, '0')}
+                  </span>
+
+                  {/* word + meaning */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--ink)', letterSpacing: '-0.01em', lineHeight: 1.2 }}>
+                      {note.front}
+                    </div>
+                    {note.back && (
+                      <div style={{ fontSize: 12.5, color: 'var(--ink-2)', marginTop: 3, lineHeight: 1.45 }}>
+                        {note.back}
+                      </div>
+                    )}
+                    {note.tags && (
+                      <div style={{ display: 'flex', gap: 4, marginTop: 5, flexWrap: 'wrap' }}>
+                        {note.tags.split(',').map(t => t.trim()).filter(Boolean).map(t => (
+                          <span key={t} className="chip" style={{ fontSize: 9.5, padding: '2px 7px' }}>{t}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* level dot */}
+                  <span style={{
+                    width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+                    background: color, marginTop: 5, boxShadow: `0 0 6px ${color}66`,
+                  }} />
+                </div>
+              ))}
+              <div style={{ height: 12 }} />
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* ── SESSION SUMMARY ──────────────────────────────── */
 function SessionSummary({ stats, totalCards, onBack }: {
   stats: { again: number; hard: number; good: number; easy: number };
@@ -671,6 +994,10 @@ function SessionSummary({ stats, totalCards, onBack }: {
   );
 }
 
+/* ── Session stats type ───────────────────────────────── */
+type SessionStats = { again: number; hard: number; good: number; easy: number };
+const EMPTY_STATS: SessionStats = { again: 0, hard: 0, good: 0, easy: 0 };
+
 /* ── MAIN PAGE ────────────────────────────────────── */
 type PageView = 'idle' | 'reviewing' | 'summary' | 'adding-note';
 
@@ -681,15 +1008,19 @@ export default function VocabPage() {
 
   const [selectedDeckId, setSelectedDeckId] = useState<number | null>(null);
   const [view, setView] = useState<PageView>('idle');
+  const [selectedLevel, setSelectedLevel] = useState<string | null>(null);
   const [reviewQueue, setReviewQueue] = useState<Card[]>([]);
   const [queueIndex, setQueueIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
-  const [stats, setStats] = useState({ again: 0, hard: 0, good: 0, easy: 0 });
+  const [stats, setStats]               = useState<SessionStats>(EMPTY_STATS);
   const [sessionRatings, setSessionRatings] = useState<Map<number, CardRating>>(new Map());
   const totalInSession = reviewQueue.length;
 
-  const { data: decks = [] } = useDecks();
-  const { data: dueData } = useDueCards(selectedDeckId, true);
+  const { data: decks = [] }    = useDecks();
+  const { data: dueData }       = useDueCards(selectedDeckId, true);
+  const { data: allNotesData }  = useNotesForDeck(selectedDeckId);
+  const { data: dbSession }     = useDeckSession(selectedDeckId);
+  const { mutateAsync: saveSession } = useSaveDeckSession();
   const { mutateAsync: submitRating } = useSubmitRating();
   const { mutateAsync: buryCard }     = useBuryCard();
   const { mutateAsync: suspendCard }  = useSuspendCard();
@@ -705,7 +1036,35 @@ export default function VocabPage() {
   }, [pendingWord, selectedDeckId]);
 
   const selectedDeck = decks.find(d => d.id === selectedDeckId) ?? null;
-  const dueCards = dueData?.cards ?? [];
+  const dueCards   = dueData?.cards ?? [];
+  const totalNotes = allNotesData?.length ?? 0;
+
+  // Persisted session from DB
+  const savedStats: SessionStats = dbSession
+    ? { again: dbSession.again, hard: dbSession.hard, good: dbSession.good, easy: dbSession.easy }
+    : EMPTY_STATS;
+  const savedRatings: Map<number, CardRating> = useMemo(
+    () => new Map((dbSession?.note_ratings ?? []).map(e => [e.note_id, e.rating as CardRating])),
+    [dbSession],
+  );
+
+  // Total distribution of ALL notes by last_rating (accumulated across all sessions)
+  const levelBars = useMemo((): LevelBar[] => {
+    const counts = { again: 0, hard: 0, good: 0, easy: 0 };
+    for (const e of (dbSession?.note_ratings ?? [])) {
+      const r = e.rating as keyof typeof counts;
+      if (r in counts) counts[r]++;
+    }
+    const rated   = counts.again + counts.hard + counts.good + counts.easy;
+    const unrated = Math.max(0, totalNotes - rated);
+    return [
+      { label: 'Chưa ôn', v: unrated,      color: 'var(--ink-3)',       bar: 'rgba(121,131,109,0.35)' },
+      { label: 'Lại',     v: counts.again,  color: 'var(--bad)',         bar: 'rgba(217,138,106,0.88)' },
+      { label: 'Khó',     v: counts.hard,   color: 'var(--warn)',        bar: 'rgba(224,169,59,0.88)'  },
+      { label: 'Được',    v: counts.good,   color: 'var(--good)',        bar: 'rgba(111,174,90,0.88)'  },
+      { label: 'Dễ',      v: counts.easy,   color: 'var(--accent-deep)', bar: 'rgba(170,203,79,0.88)'  },
+    ];
+  }, [dbSession, totalNotes]);
   const remaining = reviewQueue.length - queueIndex;
   const progress = totalInSession > 0 ? ((totalInSession - remaining) / totalInSession) * 100 : 0;
   const current = reviewQueue[queueIndex];
@@ -723,20 +1082,30 @@ export default function VocabPage() {
   const handleRate = useCallback(async (rating: CardRating) => {
     if (!current) return;
     await submitRating({ cardId: current.id, rating });
-    setStats(s => ({ ...s, [rating]: s[rating] + 1 }));
-    // Track last rating per note for per-word display
-    if (current.note_id) {
-      setSessionRatings(m => new Map(m).set(current.note_id, rating));
-    }
+
+    // Compute final values synchronously — state updates are async
+    const finalStats: SessionStats   = { ...stats,   [rating]: stats[rating] + 1 };
+    const finalRatings = new Map(sessionRatings);
+    if (current.note_id) finalRatings.set(current.note_id, rating);
+
+    setStats(finalStats);
+    setSessionRatings(finalRatings);
+
     if (rating === 'again') setReviewQueue(q => [...q, current]);
     const nextIdx = queueIndex + 1;
     if (nextIdx >= reviewQueue.length) {
+      // Persist to DB — fire-and-forget, result auto-refreshes via query invalidation
+      if (selectedDeckId) {
+        const noteRatings = Array.from(finalRatings.entries())
+          .map(([note_id, rating]) => ({ note_id, rating }));
+        saveSession({ deckId: selectedDeckId, stats: finalStats, noteRatings }).catch(() => {});
+      }
       setView('summary');
     } else {
       setQueueIndex(nextIdx);
       setFlipped(false);
     }
-  }, [current, queueIndex, reviewQueue, submitRating]);
+  }, [current, queueIndex, reviewQueue, submitRating, stats, sessionRatings, selectedDeckId]);
 
   const handleBury = async () => {
     if (!current) return;
@@ -772,6 +1141,7 @@ export default function VocabPage() {
     setView('idle');
     setReviewQueue([]);
     setQueueIndex(0);
+    setStats(EMPTY_STATS);
     setSessionRatings(new Map());
     dispatch(setPendingVocabWord(null));
     qc.invalidateQueries({ queryKey: ['anki-decks'] });
@@ -790,12 +1160,12 @@ export default function VocabPage() {
             <DeckSidebar
               decks={decks}
               selectedId={selectedDeckId}
-              onSelect={id => { setSelectedDeckId(id); if (view === 'reviewing' || view === 'summary') setView('idle'); }}
+              onSelect={id => { setSelectedDeckId(id); setSelectedLevel(null); if (view === 'reviewing' || view === 'summary') setView('idle'); }}
             />
           </div>
 
           {/* CENTER: Main content */}
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
+          <div className="scroll" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0, overflowY: 'auto' }}>
 
             {/* Deck header + start button (idle) */}
             {(view === 'idle' || !current) && (
@@ -843,6 +1213,17 @@ export default function VocabPage() {
               </div>
             )}
 
+            {/* Chart — total distribution of all notes by level */}
+            {selectedDeck && view === 'idle' && (
+              <DeckLevelChart
+                bars={levelBars}
+                totalNotes={totalNotes}
+                selectedLabel={selectedLevel}
+                onBarClick={setSelectedLevel}
+              />
+            )}
+
+
             {/* REVIEWING state */}
             {view === 'reviewing' && current && (
               <div className="glass rise" style={{ flex: 1, padding: 22, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -885,8 +1266,8 @@ export default function VocabPage() {
               selectedDeckId={selectedDeckId}
               decks={decks}
               dueCards={dueCards}
-              sessionStats={view === 'reviewing' || view === 'summary' ? stats : null}
-              sessionRatings={sessionRatings}
+              sessionStats={view === 'reviewing' || view === 'summary' ? stats : savedStats}
+              sessionRatings={view === 'reviewing' || view === 'summary' ? sessionRatings : savedRatings}
               onAddNote={() => setView('adding-note')}
               isReviewing={view === 'reviewing'}
             />
@@ -901,6 +1282,17 @@ export default function VocabPage() {
           initialFront={pendingWord?.word}
           initialBack={pendingWord?.meaning}
           onClose={() => { setView(view === 'adding-note' ? 'idle' : view); dispatch(setPendingVocabWord(null)); }}
+        />
+      )}
+
+      {/* Level word modal */}
+      {selectedLevel && (
+        <LevelWordModal
+          label={selectedLevel}
+          color={levelBars.find(b => b.label === selectedLevel)?.color ?? 'var(--ink)'}
+          notes={allNotesData ?? []}
+          ratings={savedRatings}
+          onClose={() => setSelectedLevel(null)}
         />
       )}
     </div>

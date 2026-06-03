@@ -43,7 +43,14 @@ target.
 | `colors_and_type.css` | All design tokens as CSS custom properties (`--ed-*`) |
 | `preview/` | Per-card HTML used by the Design System tab |
 | `ui_kits/engdaily/` | The EngDaily UI kit — screens + components (JSX) + demo |
-| `EngDaily.html` + `EngDaily/` | The working clickable prototype (5 screens + vocab modal) |
+| `EngDaily.html` + `EngDaily/` | The working clickable prototype (6 screens + vocab modal) |
+
+**Components added in v1.1:**
+
+| File | Component | Export | Status |
+| --- | --- | --- | --- |
+| `EngDaily/pomodoro.jsx` | `PomodoroWidget` | `window.PomodoroWidget` | ✅ shipped |
+| `EngDaily/listening.jsx` | `ListeningScreen` | `window.ListeningScreen` | ✅ updated (integrates Pomodoro) |
 
 **Getting started:** read this file → load `colors_and_type.css` → open
 `ui_kits/engdaily/index.html` (or `EngDaily.html`) for the live reference.
@@ -212,3 +219,98 @@ without blur support.
 The codebase already ships Plus Jakarta Sans. If EngDaily adopts a custom face,
 drop it into `fonts/` and update `--ed-font` / `--ed-font-mono`. For offline
 (Tauri) builds, self-host both rather than relying on the CDN.
+
+---
+
+## Component: PomodoroWidget
+
+**File:** `EngDaily/pomodoro.jsx`  
+**Export:** `window.PomodoroWidget`  
+**Load order:** after `lib.jsx` (needs `Icon`)
+
+### Purpose
+A self-contained Pomodoro timer that lives in the sidebar of study screens
+(Listening, Writing, Speaking). Helps the learner structure focused sessions
+using the Pomodoro Technique without leaving the app.
+
+### Props
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `compact` | `bool` | `false` | Shrinks ring (r 44→36), font (30→26px), dots (9→8px) for narrow sidebars |
+
+The component owns all its state internally — no external state management required.
+
+### States
+
+| State | Description |
+| --- | --- |
+| `mode` | `'focus'` \| `'short'` \| `'long'` — current Pomodoro phase |
+| `running` | `bool` — countdown active |
+| `sessions` | `0–4` — completed focus sessions this cycle |
+| `left` | seconds remaining in current phase |
+
+### Modes
+
+| Mode | Label | Default duration | Ring color |
+| --- | --- | --- | --- |
+| `focus` | Tập trung | 25 min | `--accent-deep` (lime) |
+| `short` | Nghỉ ngắn | 5 min | `--info` (dusty blue) |
+| `long` | Nghỉ dài | 15 min | `--good` (sage green) |
+
+After 4 completed focus sessions the dot counter fills and copy changes to
+"Hãy nghỉ dài nhé!" — the app does not auto-switch modes (deliberate: learner
+controls their own flow).
+
+### Visual anatomy
+
+```
+┌─────────────────────────────┐
+│ POMODORO          [4/4 chip]│  ← label-cap + optional session chip
+│ [Tập trung][Nghỉ ngắn][...]│  ← mode tabs (accent fill on active)
+│                             │
+│         ╭─────────╮         │
+│        ╭┤  23:48  ├╮        │  ← SVG ring (--r fill, track at 12% opacity)
+│        │╰─────────╯│        │     timer in JetBrains Mono 30/26px
+│        ╰─────────────╯      │     mode label 10/9.5px uppercase
+│                             │
+│          ● ● ○ ○            │  ← 4 session dots (filled = completed)
+│   [▶ Bắt đầu]  [↺]         │  ← primary btn + soft reset btn
+│   còn 2 phiên nữa nghỉ dài  │  ← status line 10.5px ink-3
+└─────────────────────────────┘
+```
+
+### Usage in Listening screen
+
+The Listening screen wraps `<PomodoroWidget compact />` and the transcript panel
+in a flex-column right column (360px). The Pomodoro widget renders above the
+transcript with `gap: 12`.
+
+```jsx
+// In ListeningScreen right column:
+<div style={{ display: 'flex', flexDirection: 'column', gap: 12, minHeight: 0 }}>
+  <PomodoroWidget compact />
+  <div className="glass rise" style={{ flex: 1, /* transcript */ }}>
+    {/* transcript content */}
+  </div>
+</div>
+```
+
+### Animation
+
+The ring progress circle uses `transition: stroke-dashoffset 0.7s var(--ease)`.
+While `running`, the entire widget container plays a subtle `pomo-beat` pulse
+(`scale 1 → 1.025 → 1` over 2.4s) — this is the only persistent animation;
+it stops immediately when paused.
+
+### Design rules
+
+- **Timer font:** always `var(--font-mono)` (JetBrains Mono) at weight 700.
+- **Ring track:** `rgba(40,55,30, 0.12)` — same neutral as other progress
+  tracks in the system; never use a full-opacity colored track.
+- **Mode tab active fill:** `var(--accent)` / dark ink — consistent with all
+  other segmented controls in the system.
+- **Disabled-feeling tabs during run:** tabs for non-active modes opacity 0.4
+  and `cursor: default` — signals "can't switch mid-session" without a tooltip.
+- **Reset button:** `.btn-soft` (white glass), not ghost — sits visually
+  secondary to the primary Start/Pause button without disappearing into dark glass.

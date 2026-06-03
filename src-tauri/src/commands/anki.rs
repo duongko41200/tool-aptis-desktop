@@ -400,6 +400,119 @@ pub async fn flag_card(card_id: i64, color: Option<String>, state: State<'_, App
     Ok(())
 }
 
+// ── Session persistence ──────────────────────────────────────────────────────
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct NoteRatingEntry {
+    pub note_id: i64,
+    pub rating: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SessionStatsInput {
+    pub again: i64,
+    pub hard: i64,
+    pub good: i64,
+    pub easy: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DeckSession {
+    pub deck_id: i64,
+    pub again: i64,
+    pub hard: i64,
+    pub good: i64,
+    pub easy: i64,
+    pub note_ratings: Vec<NoteRatingEntry>,
+    pub last_session_at: String,
+}
+
+/// Save session results: aggregate stats + per-note last rating.
+/// Called once when the review session ends (last card rated).
+#[tauri::command]
+pub async fn save_deck_session(
+    deck_id: i64,
+    stats: SessionStatsInput,
+    note_ratings: Vec<NoteRatingEntry>,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let now = chrono::Utc::now().to_rfc3339();
+
+    // Upsert aggregate stats
+    db.execute(
+        "INSERT INTO deck_session_stats (deck_id, again_count, hard_count, good_count, easy_count, last_session_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+         ON CONFLICT(deck_id) DO UPDATE SET
+           again_count      = excluded.again_count,
+           hard_count       = excluded.hard_count,
+           good_count       = excluded.good_count,
+           easy_count       = excluded.easy_count,
+           last_session_at  = excluded.last_session_at",
+        params![deck_id, stats.again, stats.hard, stats.good, stats.easy, now],
+    ).map_err(|e| e.to_string())?;
+
+    // Upsert per-note last ratings
+    for entry in &note_ratings {
+        db.execute(
+            "INSERT INTO note_session_ratings (note_id, deck_id, last_rating, updated_at)
+             VALUES (?1, ?2, ?3, ?4)
+             ON CONFLICT(note_id, deck_id) DO UPDATE SET
+               last_rating = excluded.last_rating,
+               updated_at  = excluded.updated_at",
+            params![entry.note_id, deck_id, entry.rating, now],
+        ).map_err(|e| e.to_string())?;
+    }
+
+    Ok(())
+}
+
+/// Load persisted session data for a deck (stats + per-note ratings).
+#[tauri::command]
+pub async fn get_deck_session(
+    deck_id: i64,
+    state: State<'_, AppState>,
+) -> Result<DeckSession, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    // Aggregate stats
+    let stats_result = db.query_row(
+        "SELECT again_count, hard_count, good_count, easy_count, last_session_at
+         FROM deck_session_stats WHERE deck_id = ?1",
+        params![deck_id],
+        |row| Ok((
+            row.get::<_, i64>(0)?,
+            row.get::<_, i64>(1)?,
+            row.get::<_, i64>(2)?,
+            row.get::<_, i64>(3)?,
+            row.get::<_, String>(4)?,
+        )),
+    );
+
+    let (again, hard, good, easy, last_session_at) = match stats_result {
+        Ok(r) => r,
+        Err(_) => return Ok(DeckSession {
+            deck_id, again: 0, hard: 0, good: 0, easy: 0,
+            note_ratings: vec![], last_session_at: String::new(),
+        }),
+    };
+
+    // Per-note ratings
+    let mut stmt = db.prepare(
+        "SELECT note_id, last_rating FROM note_session_ratings WHERE deck_id = ?1"
+    ).map_err(|e| e.to_string())?;
+
+    let note_ratings: Vec<NoteRatingEntry> = stmt
+        .query_map(params![deck_id], |row| {
+            Ok(NoteRatingEntry { note_id: row.get(0)?, rating: row.get(1)? })
+        })
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(DeckSession { deck_id, again, hard, good, easy, note_ratings, last_session_at })
+}
+
 #[tauri::command]
 pub async fn create_note_from_clipboard(
     deck_id: i64,

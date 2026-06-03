@@ -1,4 +1,4 @@
-/* global React, ReactDOM, WelcomeScreen, DashboardScreen, SpeakingScreen, WritingScreen, FeedbackScreen, VocabModal,
+/* global React, ReactDOM, WelcomeScreen, DashboardScreen, SpeakingScreen, WritingScreen, FeedbackScreen, VocabModal, ListeningScreen,
    useTweaks, TweaksPanel, TweakSection, TweakSlider, TweakToggle, TweakRadio, TweakColor */
 const { useState, useEffect, useRef } = React;
 
@@ -61,7 +61,7 @@ function App() {
 
   const go = (s) => { if (s === 'vocab') { setVocab(true); return; } setScreen(s); window.scrollTo(0, 0); };
 
-  const Screen = { welcome: WelcomeScreen, dashboard: DashboardScreen, speaking: SpeakingScreen, writing: WritingScreen, feedback: FeedbackScreen }[screen] || WelcomeScreen;
+  const Screen = { welcome: WelcomeScreen, dashboard: DashboardScreen, speaking: SpeakingScreen, writing: WritingScreen, feedback: FeedbackScreen, listening: ListeningScreen }[screen] || WelcomeScreen;
 
   return (
     <div id="stage">

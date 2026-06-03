@@ -122,7 +122,7 @@ export default function DashboardPage() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16, marginBottom: 20 }}>
           <ModeCard ic="chat"       tag="AI · Nói"   title="Luyện nói với AI"     desc="Hội thoại tự nhiên, nhận sửa lỗi phát âm & ngữ pháp ngay lập tức." meta="~10 phút · 3 chủ đề mới"  path="/speaking"          delay="60ms" />
           <ModeCard ic="pencil"     tag="AI · Viết"  title="Phòng viết"           desc="Viết theo đề mỗi ngày, AI chấm chi tiết Grammar · Vocab · Structure." meta="~15 phút · đề hôm nay" path="/writing"            delay="120ms" />
-          <ModeCard ic="headphones" tag="Shadowing"  title="Luyện nghe & nhại"    desc="Nghe đoạn hội thoại lofi, nhại theo từng câu để cải thiện ngữ điệu." meta="~8 phút · video mới"    path="/tools/shadowing"   delay="180ms" />
+          <ModeCard ic="headphones" tag="Shadowing"  title="Luyện nghe & nhại"    desc="Nghe đoạn hội thoại lofi, nhại theo từng câu để cải thiện ngữ điệu." meta="~8 phút · video mới"    path="/listening"         delay="180ms" />
         </div>
 
         {/* Bottom row: recent + player + word-of-day */}

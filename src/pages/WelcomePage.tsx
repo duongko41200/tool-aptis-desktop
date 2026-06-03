@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import TopBar from '../components/layout/TopBar';
 import Icon from '../components/common/Icon';
+import PomodoroWidget from '../components/shared/PomodoroWidget';
+import { useTweaks } from '../contexts/TweaksContext';
 
 function useCountdown(initial = 8285) {
   const [s, setS] = useState(initial);
@@ -70,6 +72,7 @@ function ProfilePopover({ onClose }: { onClose: () => void }) {
 }
 
 function SettingsPopover({ onClose }: { onClose: () => void }) {
+  const { openTweaks } = useTweaks();
   const [sound, setSound] = useState(true);
   const [notif, setNotif] = useState(true);
 
@@ -99,7 +102,7 @@ function SettingsPopover({ onClose }: { onClose: () => void }) {
         <Row ic="bell" label="Nhắc học hằng ngày"><Switch on={notif} set={setNotif} /></Row>
         <Row ic="globe" label="Ngôn ngữ"><span className="chip" style={{ fontSize: 12 }}>Tiếng Việt</span></Row>
         <hr className="divider" style={{ margin: '4px 12px' }} />
-        <button onClick={onClose}
+        <button onClick={() => { openTweaks(); onClose(); }}
           style={{ width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 12, padding: '11px 12px', borderRadius: 'var(--r-sm)', fontSize: 14, fontWeight: 600, color: 'var(--ink)', transition: 'background 140ms', background: 'transparent' }}
           onMouseEnter={e => { e.currentTarget.style.background = 'rgba(40,55,30,0.06)'; }}
           onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}>
@@ -216,33 +219,39 @@ export default function WelcomePage() {
 
       {/* Bottom-left widgets */}
       <div style={{ position: 'absolute', bottom: 22, left: 22, zIndex: 15, width: 268, display: 'flex', flexDirection: 'column', gap: 11 }}>
-        <div className="glass-2 rise" style={{ padding: '14px 16px', animationDelay: '60ms' }}>
-          <div className="label-cap" style={{ color: 'var(--accent-deep)', marginBottom: 6 }}>Có gì mới?</div>
-          <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--ink)' }}>Đã thêm chế độ ôn từ vựng & AI luyện nói.</div>
-        </div>
-        <div className="glass-2 rise" style={{ padding: '14px 16px', animationDelay: '120ms' }}>
-          <div className="label-cap" style={{ color: 'var(--ink-3)', marginBottom: 6 }}>Luyện phát âm</div>
-          <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--ink)' }}>
-            Bắt đầu với âm <b style={{ color: 'var(--accent-deep)' }}>/iː/</b> nhé.
-          </div>
-        </div>
 
-        <div style={{ display: 'flex', gap: 11 }}>
-          <div className="glass-2 rise" style={{ flex: 1, padding: '14px 16px', animationDelay: '180ms' }}>
-            <div className="label-cap" style={{ marginBottom: 6 }}>Streak</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Icon name="flame" size={18} fill style={{ color: '#e08a3b' }} />
-              <span style={{ fontWeight: 800, fontSize: 18, color: 'var(--ink)' }}>9</span>
-              <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>ngày</span>
+        {mode === 'pomodoro' ? (
+          <PomodoroWidget />
+        ) : (
+          <>
+            <div className="glass-2 rise" style={{ padding: '14px 16px', animationDelay: '60ms' }}>
+              <div className="label-cap" style={{ color: 'var(--accent-deep)', marginBottom: 6 }}>Có gì mới?</div>
+              <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--ink)' }}>Đã thêm chế độ ôn từ vựng & AI luyện nói.</div>
             </div>
-          </div>
-          <div className="glass-2 rise" style={{ flex: 1.3, padding: '14px 16px', animationDelay: '240ms' }}>
-            <div className="label-cap" style={{ marginBottom: 6 }}>Thử thách</div>
-            <div className="chip chip-accent" style={{ fontSize: 12, fontFamily: 'var(--font-mono)', fontWeight: 600, padding: '4px 9px' }}>
-              <Icon name="clock" size={12} /> {time}
+            <div className="glass-2 rise" style={{ padding: '14px 16px', animationDelay: '120ms' }}>
+              <div className="label-cap" style={{ color: 'var(--ink-3)', marginBottom: 6 }}>Luyện phát âm</div>
+              <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--ink)' }}>
+                Bắt đầu với âm <b style={{ color: 'var(--accent-deep)' }}>/iː/</b> nhé.
+              </div>
             </div>
-          </div>
-        </div>
+            <div style={{ display: 'flex', gap: 11 }}>
+              <div className="glass-2 rise" style={{ flex: 1, padding: '14px 16px', animationDelay: '180ms' }}>
+                <div className="label-cap" style={{ marginBottom: 6 }}>Streak</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Icon name="flame" size={18} fill style={{ color: '#e08a3b' }} />
+                  <span style={{ fontWeight: 800, fontSize: 18, color: 'var(--ink)' }}>9</span>
+                  <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>ngày</span>
+                </div>
+              </div>
+              <div className="glass-2 rise" style={{ flex: 1.3, padding: '14px 16px', animationDelay: '240ms' }}>
+                <div className="label-cap" style={{ marginBottom: 6 }}>Thử thách</div>
+                <div className="chip chip-accent" style={{ fontSize: 12, fontFamily: 'var(--font-mono)', fontWeight: 600, padding: '4px 9px' }}>
+                  <Icon name="clock" size={12} /> {time}
+                </div>
+              </div>
+            </div>
+          </>
+        )}
 
         <div className="glass-2" style={{ display: 'flex', gap: 5, padding: 5, borderRadius: 'var(--r-pill)' }}>
           {([['study', 'pencil', 'Học tập'], ['pomodoro', 'clock', 'Pomodoro']] as const).map(([k, ic, label]) => (

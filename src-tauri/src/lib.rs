@@ -157,6 +157,8 @@ pub fn run() {
             commands::anki::suspend_card,
             commands::anki::flag_card,
             commands::anki::create_note_from_clipboard,
+            commands::anki::save_deck_session,
+            commands::anki::get_deck_session,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
