@@ -163,6 +163,9 @@ pub fn run() {
             commands::ollama::download_ollama,
             commands::ollama::start_ollama,
             commands::ollama::check_ollama_running,
+            commands::backend::start_rag_backend,
+            commands::backend::check_backend_running,
+            commands::backend::get_backend_diagnostics,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

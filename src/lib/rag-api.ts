@@ -17,6 +17,22 @@ export interface SourceInfo {
   chunks: number;
 }
 
+export interface ChunkInfo {
+  id: string;
+  content: string;
+  index: number;
+  metadata: {
+    source?: string;
+    title?: string;
+    section?: string;
+    heading1?: string;
+    heading2?: string;
+    heading3?: string;
+    chunk_index?: number;
+    [key: string]: unknown;
+  };
+}
+
 export interface HealthResponse {
   status: 'ok' | 'degraded';
   ollama: boolean;
@@ -28,6 +44,8 @@ export interface ModelStatus {
   model_available: boolean;
   model: string;
   installed_models: string[];
+  embed_model: string | null;
+  embed_ready: boolean;
   backend_offline?: boolean;
 }
 
@@ -46,10 +64,21 @@ export async function ragHealth(): Promise<HealthResponse> {
   return r.json();
 }
 
+/** Kiểm tra backend alive — chỉ gọi /ping, không phụ thuộc Ollama. */
+export async function pingBackend(): Promise<boolean> {
+  try {
+    const r = await fetch(`${BASE}/ping`, { signal: AbortSignal.timeout(3000) });
+    return r.ok;
+  } catch {
+    return false;
+  }
+}
+
 export async function ragModelStatus(): Promise<ModelStatus> {
   try {
+    // /models/status gọi Ollama 2 lần → cần timeout đủ lớn
     const r = await fetch(`${BASE}/models/status`, {
-      signal: AbortSignal.timeout(4000),
+      signal: AbortSignal.timeout(10000),
     });
     if (!r.ok) throw new Error('backend error');
     return r.json();
@@ -59,8 +88,34 @@ export async function ragModelStatus(): Promise<ModelStatus> {
       model_available: false,
       model: 'qwen3:4b',
       installed_models: [],
+      embed_model: null,
+      embed_ready: false,
       backend_offline: true,
     };
+  }
+}
+
+// ── Pull embed model với progress callback ───────────────
+export async function ragPullEmbedModel(
+  onProgress: (p: PullProgress) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const r = await fetch(`${BASE}/models/pull-embed`, { signal });
+  if (!r.body) throw new Error('No response body');
+  const reader  = r.body.getReader();
+  const decoder = new TextDecoder();
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    const text = decoder.decode(value, { stream: true });
+    for (const line of text.split('\n')) {
+      if (!line.startsWith('data: ')) continue;
+      try {
+        const data: PullProgress = JSON.parse(line.slice(6));
+        onProgress(data);
+        if (data.done || data.error) return;
+      } catch { /* partial */ }
+    }
   }
 }
 
@@ -163,16 +218,52 @@ export async function ragChatStream(
 }
 
 // ── Sources ───────────────────────────────────────────────
+export interface IngestDebugResult {
+  cookies_injected: number;
+  pages_crawled: number;
+  results: {
+    url: string;
+    title: string;
+    content_length: number;
+    preview: string;
+    login_detected: boolean;
+    login_keywords_found: string[];
+  }[];
+}
+
+export async function ragIngestDebug(
+  url: string,
+  cookies?: string,
+): Promise<IngestDebugResult> {
+  const r = await fetch(`${BASE}/ingest/debug`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url, max_depth: 0, cookies: cookies || null }),
+    signal: AbortSignal.timeout(60_000),
+  });
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({ detail: r.statusText }));
+    throw new Error(err.detail ?? `HTTP ${r.status}`);
+  }
+  return r.json();
+}
+
 export async function ragIngestUrl(
   url: string,
   maxDepth = 1,
   openaiKey?: string,
+  cookies?: string,
 ): Promise<{ chunks: number }> {
   const r = await fetch(`${BASE}/ingest/url`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url, max_depth: maxDepth, openai_key: openaiKey ?? null }),
-    signal: AbortSignal.timeout(120_000), // 2 phút
+    body: JSON.stringify({
+      url,
+      max_depth: maxDepth,
+      openai_key: openaiKey ?? null,
+      cookies: cookies || null,
+    }),
+    signal: AbortSignal.timeout(120_000),
   });
   if (!r.ok) {
     const err = await r.json().catch(() => ({ detail: r.statusText }));
@@ -185,6 +276,12 @@ export async function ragListSources(): Promise<SourceInfo[]> {
   const r = await fetch(`${BASE}/sources`);
   const data = await r.json();
   return data.sources ?? [];
+}
+
+export async function ragGetChunks(url: string): Promise<ChunkInfo[]> {
+  const r = await fetch(`${BASE}/sources/chunks?url=${encodeURIComponent(url)}`);
+  const data = await r.json();
+  return data.chunks ?? [];
 }
 
 export async function ragDeleteSource(url: string): Promise<number> {

@@ -26,6 +26,11 @@ app.add_middleware(
 )
 
 
+@app.get("/ping")
+async def ping():
+    return {"ok": True}
+
+
 # ── Schemas ───────────────────────────────────────────────
 class ChatRequest(BaseModel):
     question: str
@@ -38,6 +43,7 @@ class IngestRequest(BaseModel):
     url: str
     max_depth: int = 2
     openai_key: str | None = None
+    cookies: str | None = None   # Cookie header string, vd: "session=abc; token=xyz"
 
 
 # ── Model / Ollama status ─────────────────────────────────
@@ -58,11 +64,18 @@ async def model_status():
         else:
             active_model = LLM_MODEL
             available = False
+
+        from agent import _pick_embed_model
+        # _pick_embed_model là blocking (httpx sync) — chạy trong thread pool
+        embed_model = await asyncio.to_thread(_pick_embed_model)
+
         return {
             "ollama_running": True,
             "model_available": available,
             "model": active_model,
             "installed_models": installed,
+            "embed_model": embed_model,
+            "embed_ready": embed_model is not None,
         }
     except Exception:
         return {
@@ -70,6 +83,8 @@ async def model_status():
             "model_available": False,
             "model": LLM_MODEL,
             "installed_models": [],
+            "embed_model": None,
+            "embed_ready": False,
         }
 
 
@@ -83,6 +98,33 @@ async def pull_model():
                     "POST",
                     f"{OLLAMA_URL}/api/pull",
                     json={"name": LLM_MODEL},
+                ) as r:
+                    async for line in r.aiter_lines():
+                        if line.strip():
+                            yield f"data: {line}\n\n"
+        except Exception as e:
+            yield f'data: {{"error": "{str(e)}"}}\n\n'
+        yield 'data: {"done": true}\n\n'
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@app.get("/models/pull-embed")
+async def pull_embed_model():
+    """Stream tiến trình pull nomic-embed-text (SSE)."""
+    EMBED_TARGET = os.getenv("EMBED_MODEL", "nomic-embed-text")
+
+    async def generate():
+        try:
+            async with httpx.AsyncClient(timeout=None) as c:
+                async with c.stream(
+                    "POST",
+                    f"{OLLAMA_URL}/api/pull",
+                    json={"name": EMBED_TARGET},
                 ) as r:
                     async for line in r.aiter_lines():
                         if line.strip():
@@ -138,8 +180,8 @@ async def chat(req: ChatRequest):
         docs    = await asyncio.to_thread(retriever.invoke, req.question)
         sources = [
             {
-                "title":   d.metadata.get("title", d.metadata.get("source", "Nguồn không rõ")),
-                "url":     d.metadata.get("source", ""),
+                "title":   (d.metadata or {}).get("title") or (d.metadata or {}).get("source") or "Nguồn không rõ",
+                "url":     (d.metadata or {}).get("source", ""),
                 "snippet": d.page_content[:220],
             }
             for d in docs[:3]
@@ -163,8 +205,8 @@ async def chat_stream(req: ChatRequest):
             docs = await asyncio.to_thread(retriever.invoke, req.question)
             sources = [
                 {
-                    "title":   d.metadata.get("title", d.metadata.get("source", "Nguồn không rõ")),
-                    "url":     d.metadata.get("source", ""),
+                    "title":   (d.metadata or {}).get("title") or (d.metadata or {}).get("source") or "Nguồn không rõ",
+                    "url":     (d.metadata or {}).get("source", ""),
                     "snippet": d.page_content[:220],
                 }
                 for d in docs[:3]
@@ -216,13 +258,61 @@ async def chat_stream(req: ChatRequest):
 
 
 # ── Ingest ────────────────────────────────────────────────
+@app.post("/ingest/debug")
+async def ingest_debug(req: IngestRequest):
+    """Crawl URL và trả về raw content để debug — không lưu vào ChromaDB."""
+    import asyncio as _asyncio
+    from ingest import _crawl_pages, _parse_cookie_string
+
+    login_keywords = [
+        "đăng nhập", "login", "sign in", "signin",
+        "log in", "mật khẩu", "password", "email",
+        "tài khoản", "account", "unauthorized", "403", "401",
+    ]
+
+    async def _run():
+        docs = await _crawl_pages(req.url, max_depth=0, cookies=req.cookies)
+        results = []
+        for doc in docs:
+            content = doc.page_content or ""
+            lower = content.lower()
+            detected_login = [kw for kw in login_keywords if kw in lower]
+            results.append({
+                "url": doc.metadata.get("source", req.url),
+                "title": doc.metadata.get("title", ""),
+                "content_length": len(content),
+                "preview": content[:1500],
+                "login_detected": bool(detected_login),
+                "login_keywords_found": detected_login,
+            })
+
+        cookie_count = 0
+        if req.cookies:
+            cookie_count = len(_parse_cookie_string(req.cookies, req.url))
+
+        return {
+            "cookies_injected": cookie_count,
+            "pages_crawled": len(results),
+            "results": results,
+        }
+
+    try:
+        result = await _run()
+        return result
+    except Exception as e:
+        import traceback
+        raise HTTPException(status_code=500, detail=f"{type(e).__name__}: {e}\n\n{traceback.format_exc()}")
+
+
 @app.post("/ingest/url")
 async def ingest(req: IngestRequest):
     try:
-        chunks = await asyncio.to_thread(ingest_url, req.url, req.max_depth)
+        chunks = await asyncio.to_thread(ingest_url, req.url, req.max_depth, req.cookies)
         return {"status": "ok", "url": req.url, "chunks": chunks}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        import traceback
+        detail = f"{type(e).__name__}: {e}\n\n{traceback.format_exc()}"
+        raise HTTPException(status_code=500, detail=detail)
 
 
 @app.get("/sources")
@@ -233,6 +323,8 @@ async def list_sources():
     counts: dict[str, int] = {}
     titles: dict[str, str] = {}
     for meta in metas:
+        if not meta:
+            continue
         url = meta.get("source", "unknown")
         counts[url] = counts.get(url, 0) + 1
         if url not in titles:
@@ -245,13 +337,51 @@ async def list_sources():
     }
 
 
+@app.get("/sources/chunks")
+async def get_source_chunks(url: str = Query(...)):
+    """Trả về toàn bộ chunk của một URL, kèm nội dung và metadata."""
+    vs = get_vectorstore()
+    try:
+        data = vs.get(where={"source": url}, include=["documents", "metadatas"])
+    except Exception:
+        data = vs.get(include=["documents", "metadatas"])
+        # lọc thủ công nếu where không hỗ trợ
+        ids   = data.get("ids", [])
+        docs  = data.get("documents", []) or []
+        metas = data.get("metadatas", []) or []
+        filtered = [
+            (i, d, m) for i, d, m in zip(ids, docs, metas)
+            if m and m.get("source") == url
+        ]
+        ids   = [x[0] for x in filtered]
+        docs  = [x[1] for x in filtered]
+        metas = [x[2] for x in filtered]
+        data  = {"ids": ids, "documents": docs, "metadatas": metas}
+
+    ids   = data.get("ids", [])
+    docs  = data.get("documents", []) or []
+    metas = data.get("metadatas", []) or []
+
+    chunks = []
+    for doc_id, content, meta in zip(ids, docs, metas):
+        safe_meta = meta or {}
+        chunks.append({
+            "id":       doc_id,
+            "content":  content or "",
+            "metadata": safe_meta,
+            "index":    safe_meta.get("chunk_index", 0),
+        })
+    chunks.sort(key=lambda x: x["index"])
+    return {"url": url, "total": len(chunks), "chunks": chunks}
+
+
 @app.delete("/sources")
 async def delete_source(url: str = Query(...)):
     vs = get_vectorstore()
     data = vs.get()
     ids_to_del = [
         id_ for id_, meta in zip(data["ids"], data.get("metadatas") or [])
-        if meta.get("source") == url
+        if meta and meta.get("source") == url
     ]
     if ids_to_del:
         vs.delete(ids=ids_to_del)

@@ -16,9 +16,9 @@ OLLAMA_URL  = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 LLM_MODEL   = os.getenv("LLM_MODEL",   "llama3:latest")
 EMBED_MODEL = os.getenv("EMBED_MODEL", "nomic-embed-text")
 
-SYSTEM_PROMPT = """Bạn là trợ lý AI chuyên về tiếng Anh và luyện thi APTIS/IELTS.
-Trả lời dựa trên tài liệu tham khảo bên dưới. Nếu tài liệu không đủ thông tin, hãy nói rõ.
-Trả lời bằng ngôn ngữ người dùng đang dùng (tiếng Việt hoặc tiếng Anh).
+SYSTEM_PROMPT = """Bạn là TiPo là một trợ lý AI chuyên về tiếng Anh và luyện thi APTIS.
+QUAN TRỌNG: Luôn luôn trả lời bằng tiếng Việt, bất kể câu hỏi được viết bằng ngôn ngữ nào.
+Trả lời dựa trên tài liệu tham khảo bên dưới. Nếu tài liệu không đủ thông tin, hãy nói rõ bằng tiếng Việt.
 
 Tài liệu tham khảo:
 {context}"""
@@ -69,16 +69,23 @@ def get_embeddings(openai_key: str | None = None):
     return OllamaEmbeddings(model=model, base_url=OLLAMA_URL)
 
 
-def get_vectorstore(openai_key: str | None = None) -> Chroma:
+def get_vectorstore(openai_key: str | None = None, embeddings=None) -> Chroma:
+    if embeddings is None:
+        embeddings = get_embeddings(openai_key)
     return Chroma(
         collection_name=COLLECTION,
-        embedding_function=get_embeddings(openai_key),
+        embedding_function=embeddings,
         persist_directory=CHROMA_DIR,
     )
 
 
-def get_retriever(k: int = 4, openai_key: str | None = None):
-    vs = get_vectorstore(openai_key)
+def get_retriever(k: int = 6, openai_key: str | None = None):
+    embeddings = get_embeddings(openai_key)
+    is_fake = type(embeddings).__name__ == "FakeEmbeddings"
+    vector_weight = 0.0 if is_fake else 0.7
+    bm25_weight = 1.0 if is_fake else 0.3
+
+    vs = get_vectorstore(openai_key, embeddings=embeddings)
     vector_ret = vs.as_retriever(search_kwargs={"k": k})
 
     data = vs.get()
@@ -86,21 +93,80 @@ def get_retriever(k: int = 4, openai_key: str | None = None):
     if not raw_docs:
         return vector_ret
 
-    metas = data.get("metadatas") or [{}] * len(raw_docs)
+    raw_metas = data.get("metadatas") or []
+    metas = [(m if m is not None else {}) for m in raw_metas] or [{}] * len(raw_docs)
     docs = [Document(page_content=t, metadata=m) for t, m in zip(raw_docs, metas)]
     bm25_ret = BM25Retriever.from_documents(docs, k=k)
 
     return EnsembleRetriever(
         retrievers=[vector_ret, bm25_ret],
-        weights=[0.7, 0.3],
+        weights=[vector_weight, bm25_weight],
     )
 
 
-def format_docs(docs: list[Document]) -> str:
-    return "\n\n---\n\n".join(
-        f"[Nguồn: {d.metadata.get('source', 'unknown')}]\n{d.page_content}"
-        for d in docs
-    )
+def _rerank(docs: list[Document], query: str) -> list[Document]:
+    """
+    Simple reranker:
+    1. Loại chunk quá ngắn (< 50 ký tự)
+    2. Loại chunk trùng nội dung (hash đầu 200 ký tự)
+    3. Ưu tiên chunk chứa từ khóa từ query (score đơn giản)
+    4. Giới hạn tối đa 3 chunk per source URL
+    """
+    from collections import defaultdict
+    import hashlib
+
+    # Đảm bảo metadata không None (có thể xảy ra khi load từ ChromaDB cũ)
+    for d in docs:
+        if d.metadata is None:
+            d.metadata = {}
+
+    # Bước 1: lọc chunk rỗng / quá ngắn
+    docs = [d for d in docs if len(d.page_content.strip()) >= 50]
+
+    # Bước 2: dedup theo nội dung
+    seen_hashes: set[str] = set()
+    deduped = []
+    for d in docs:
+        h = hashlib.md5(d.page_content[:200].encode()).hexdigest()
+        if h not in seen_hashes:
+            seen_hashes.add(h)
+            deduped.append(d)
+
+    # Bước 3: score theo keyword overlap
+    query_words = set(query.lower().split())
+    def score(d: Document) -> float:
+        text = d.page_content.lower()
+        hits = sum(1 for w in query_words if w in text)
+        # Ưu tiên chunk có heading khớp query
+        section = d.metadata.get("section", "").lower()
+        heading_bonus = sum(2 for w in query_words if w in section)
+        return hits + heading_bonus
+
+    scored = sorted(deduped, key=score, reverse=True)
+
+    # Bước 4: max 3 chunk per source
+    source_counts: dict = defaultdict(int)
+    result = []
+    for d in scored:
+        src = d.metadata.get("source", "unknown")
+        if source_counts[src] < 3:
+            result.append(d)
+            source_counts[src] += 1
+
+    return result
+
+
+def format_docs(docs: list[Document], query: str = "") -> str:
+    if query:
+        docs = _rerank(docs, query)
+    parts = []
+    for d in docs:
+        meta    = d.metadata or {}
+        source  = meta.get("source", "unknown")
+        section = meta.get("section", "")
+        header  = f"[Nguồn: {source}]" + (f" [Mục: {section}]" if section else "")
+        parts.append(f"{header}\n{d.page_content}")
+    return "\n\n---\n\n".join(parts)
 
 
 def build_chain(model: str = LLM_MODEL, openai_key: str | None = None):
@@ -117,8 +183,13 @@ def build_chain(model: str = LLM_MODEL, openai_key: str | None = None):
         ("human", "{question}"),
     ])
 
+    def format_with_query(input_dict: dict) -> str:
+        docs = retriever.invoke(input_dict["question"])
+        return format_docs(docs, query=input_dict["question"])
+
+    from langchain_core.runnables import RunnableLambda
     chain = (
-        {"context": retriever | format_docs, "question": RunnablePassthrough()}
+        RunnablePassthrough.assign(context=RunnableLambda(format_with_query))
         | prompt
         | llm
         | StrOutputParser()

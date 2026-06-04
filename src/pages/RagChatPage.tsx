@@ -4,8 +4,8 @@ import { invoke } from '@tauri-apps/api/core';
 import Icon from '../components/common/Icon';
 import RagSetupModal from '../components/rag/RagSetupModal';
 import {
-  ragChatStream, ragIngestUrl, ragListSources, ragDeleteSource,
-  type RagSource, type SourceInfo,
+  ragChatStream, ragIngestUrl, ragIngestDebug, ragListSources, ragDeleteSource, ragGetChunks,
+  type RagSource, type SourceInfo, type ChunkInfo, type IngestDebugResult,
 } from '../lib/rag-api';
 
 /* ── Types ───────────────────────────────────────────────── */
@@ -198,6 +198,393 @@ function ModelOption({ label, desc, free, active, onClick }: {
   );
 }
 
+/* ── ChunkInspector ──────────────────────────────────────── */
+function ChunkInspector({ url, title, onClose }: { url: string; title: string; onClose: () => void }) {
+  const [chunks, setChunks]   = useState<ChunkInfo[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<Set<number>>(new Set());
+
+  useEffect(() => {
+    setLoading(true);
+    ragGetChunks(url)
+      .then(data => { setChunks(data); setLoading(false); })
+      .catch(e  => { setError(e instanceof Error ? e.message : 'Lỗi tải chunks'); setLoading(false); });
+  }, [url]);
+
+  const toggle = (i: number) =>
+    setExpanded(prev => { const s = new Set(prev); s.has(i) ? s.delete(i) : s.add(i); return s; });
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 200,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      background: 'rgba(8,12,6,0.72)', backdropFilter: 'blur(6px)',
+    }} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="glass rise" style={{
+        width: 720, maxWidth: 'calc(100vw - 40px)',
+        maxHeight: 'calc(100vh - 60px)',
+        display: 'flex', flexDirection: 'column',
+        borderRadius: 'var(--r-xl)', overflow: 'hidden',
+      }}>
+
+        {/* Header */}
+        <div style={{
+          padding: '18px 22px', borderBottom: '1px solid var(--glass-line)',
+          display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0,
+        }}>
+          <Icon name="globe" size={18} style={{ color: 'var(--info)', flexShrink: 0 }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {title}
+            </div>
+            <div style={{ fontSize: 11.5, color: 'var(--ink-3)', fontFamily: 'var(--font-mono)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {url}
+            </div>
+          </div>
+          {!loading && !error && (
+            <span style={{
+              padding: '4px 11px', borderRadius: 'var(--r-pill)',
+              background: 'rgba(111,174,90,0.14)', border: '1px solid rgba(111,174,90,0.28)',
+              fontSize: 12, fontWeight: 700, color: 'var(--good)', flexShrink: 0,
+            }}>
+              {chunks.length} chunks
+            </span>
+          )}
+          <button onClick={onClose} style={{
+            width: 32, height: 32, borderRadius: 'var(--r-pill)', flexShrink: 0,
+            background: 'rgba(40,55,30,0.08)', border: '1px solid var(--glass-edge)',
+            display: 'grid', placeItems: 'center', cursor: 'pointer',
+          }}>
+            <Icon name="close" size={15} style={{ color: 'var(--ink-3)' }} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="scroll" style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+          {loading && (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, paddingTop: 40 }}>
+              <div style={{ width: 36, height: 36, borderRadius: '50%', border: '3px solid var(--accent)', borderTopColor: 'transparent', animation: 'rag-spin 0.8s linear infinite' }} />
+              <div style={{ fontSize: 13, color: 'var(--ink-2)' }}>Đang tải chunks từ ChromaDB...</div>
+            </div>
+          )}
+
+          {error && (
+            <div style={{ padding: '14px 16px', borderRadius: 'var(--r-md)', background: 'rgba(217,138,106,0.12)', border: '1px solid rgba(217,138,106,0.3)', color: 'var(--bad)', fontSize: 13 }}>
+              {error}
+            </div>
+          )}
+
+          {!loading && !error && chunks.length === 0 && (
+            <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--ink-3)', fontSize: 13 }}>
+              Không tìm thấy chunk nào cho URL này
+            </div>
+          )}
+
+          {chunks.map((chunk, i) => {
+            const isOpen = expanded.has(i);
+            const meta = chunk.metadata || {};
+            const section = meta.section || '';
+            const headingParts = [meta.heading1, meta.heading2, meta.heading3].filter(Boolean);
+            const content = chunk.content || '';
+            const preview = content.replace(/^\[Chủ đề:[^\]]+\]\s*/m, '').slice(0, 180).trim();
+
+            return (
+              <div key={chunk.id} style={{
+                borderRadius: 'var(--r-md)', overflow: 'hidden',
+                border: '1px solid var(--glass-line)',
+                background: 'rgba(255,255,255,0.52)',
+                backdropFilter: 'blur(12px)',
+              }}>
+                {/* Chunk header — always visible */}
+                <button onClick={() => toggle(i)} style={{
+                  width: '100%', textAlign: 'left', padding: '10px 14px',
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  display: 'flex', alignItems: 'flex-start', gap: 10,
+                }}>
+                  {/* Index badge */}
+                  <span style={{
+                    minWidth: 28, height: 20, borderRadius: 'var(--r-pill)',
+                    background: 'rgba(217,232,157,0.3)', border: '1px solid rgba(170,203,79,0.35)',
+                    fontSize: 10.5, fontWeight: 800, color: 'var(--accent-deep)',
+                    fontFamily: 'var(--font-mono)', display: 'grid', placeItems: 'center',
+                    flexShrink: 0, marginTop: 1, paddingInline: 6,
+                  }}>
+                    #{chunk.index}
+                  </span>
+
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    {/* Section breadcrumb */}
+                    {headingParts.length > 0 && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4, flexWrap: 'wrap' }}>
+                        {headingParts.map((h, hi) => (
+                          <>
+                            {hi > 0 && <Icon key={`sep-${hi}`} name="chevR" size={10} style={{ color: 'var(--ink-3)', flexShrink: 0 }} />}
+                            <span key={h as string} style={{
+                              fontSize: 11, fontWeight: 700, color: 'var(--info)',
+                              background: 'rgba(106,166,196,0.12)', padding: '1px 6px',
+                              borderRadius: 'var(--r-pill)',
+                            }}>{h as string}</span>
+                          </>
+                        ))}
+                      </div>
+                    )}
+                    {/* Preview text */}
+                    <div style={{
+                      fontSize: 12.5, color: 'var(--ink-2)', lineHeight: 1.55,
+                      display: '-webkit-box', WebkitLineClamp: isOpen ? undefined : 2,
+                      WebkitBoxOrient: 'vertical', overflow: isOpen ? 'visible' : 'hidden',
+                    }}>
+                      {isOpen ? null : (preview || '(không có nội dung)') + (content.length > 180 ? '…' : '')}
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                    <span style={{ fontSize: 11, color: 'var(--ink-3)', fontFamily: 'var(--font-mono)' }}>
+                      {chunk.content.length} ký tự
+                    </span>
+                    <Icon name={isOpen ? 'chevD' : 'chevR'} size={13} style={{ color: 'var(--ink-3)' }} />
+                  </div>
+                </button>
+
+                {/* Expanded content */}
+                {isOpen && (
+                  <div style={{ borderTop: '1px solid var(--glass-edge)' }}>
+                    {/* Metadata row */}
+                    {section && (
+                      <div style={{ padding: '7px 14px', background: 'rgba(217,232,157,0.07)', borderBottom: '1px solid var(--glass-edge)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <Icon name="bookmark" size={12} style={{ color: 'var(--accent-deep)', flexShrink: 0 }} />
+                        <span style={{ fontSize: 11.5, color: 'var(--ink-2)', fontWeight: 600 }}>{section}</span>
+                      </div>
+                    )}
+                    {/* Raw content */}
+                    <div style={{
+                      padding: '12px 14px',
+                      fontSize: 12.5, color: 'var(--ink)', lineHeight: 1.7,
+                      whiteSpace: 'pre-wrap', fontFamily: 'var(--font-base)',
+                      maxHeight: 320, overflowY: 'auto',
+                    }}>
+                      {content || <span style={{ color: 'var(--ink-3)', fontStyle: 'italic' }}>(chunk rỗng)</span>}
+                    </div>
+                    {/* Metadata footer */}
+                    <div style={{
+                      padding: '8px 14px', borderTop: '1px solid var(--glass-edge)',
+                      display: 'flex', gap: 14, flexWrap: 'wrap',
+                      background: 'rgba(40,55,30,0.04)',
+                    }}>
+                      {[
+                        ['ID', chunk.id.slice(0, 8) + '…'],
+                        ['Chunk', String(chunk.index)],
+                        ['Chars', String(content.length)],
+                      ].map(([k, v]) => (
+                        <div key={k} style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+                          <span style={{ fontSize: 10.5, color: 'var(--ink-3)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{k}</span>
+                          <span style={{ fontSize: 11, color: 'var(--ink-2)', fontFamily: 'var(--font-mono)' }}>{v}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Footer */}
+        {!loading && !error && chunks.length > 0 && (
+          <div style={{
+            padding: '12px 20px', borderTop: '1px solid var(--glass-line)', flexShrink: 0,
+            display: 'flex', alignItems: 'center', gap: 10,
+            background: 'rgba(255,255,255,0.25)',
+          }}>
+            <button onClick={() => setExpanded(new Set(chunks.map((_, i) => i)))} className="btn btn-soft btn-sm">
+              Mở rộng tất cả
+            </button>
+            <button onClick={() => setExpanded(new Set())} className="btn btn-ghost btn-sm">
+              Thu gọn tất cả
+            </button>
+            <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--ink-3)', fontFamily: 'var(--font-mono)' }}>
+              {chunks.reduce((s, c) => s + c.content.length, 0).toLocaleString()} ký tự tổng
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ── DebugResultModal ────────────────────────────────────── */
+function DebugResultModal({ result, url, onClose }: { result: IngestDebugResult; url: string; onClose: () => void }) {
+  const [expandedIdx, setExpandedIdx] = useState<number | null>(0);
+  const allLoginDetected = result.results.some(r => r.login_detected);
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 300,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      background: 'rgba(8,12,6,0.78)', backdropFilter: 'blur(6px)',
+    }} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="glass rise" style={{
+        width: 760, maxWidth: 'calc(100vw - 40px)',
+        maxHeight: 'calc(100vh - 60px)',
+        display: 'flex', flexDirection: 'column',
+        borderRadius: 'var(--r-xl)', overflow: 'hidden',
+      }}>
+
+        {/* Header */}
+        <div style={{
+          padding: '18px 22px', borderBottom: '1px solid var(--glass-line)',
+          display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0,
+        }}>
+          <Icon name="lightbulb" size={20} style={{ color: allLoginDetected ? 'var(--bad)' : 'var(--good)', flexShrink: 0 }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--ink)' }}>Kết quả kiểm tra URL</div>
+            <div style={{ fontSize: 11.5, color: 'var(--ink-3)', fontFamily: 'var(--font-mono)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{url}</div>
+          </div>
+          <button onClick={onClose} style={{
+            width: 32, height: 32, borderRadius: 'var(--r-pill)', flexShrink: 0,
+            background: 'rgba(40,55,30,0.08)', border: '1px solid var(--glass-edge)',
+            display: 'grid', placeItems: 'center', cursor: 'pointer',
+          }}>
+            <Icon name="close" size={15} style={{ color: 'var(--ink-3)' }} />
+          </button>
+        </div>
+
+        {/* Summary bar */}
+        <div style={{
+          padding: '12px 22px', borderBottom: '1px solid var(--glass-line)',
+          display: 'flex', gap: 20, flexShrink: 0,
+          background: allLoginDetected ? 'rgba(217,80,60,0.08)' : 'rgba(111,174,90,0.07)',
+        }}>
+          {[
+            ['Cookie đã inject', String(result.cookies_injected)],
+            ['Trang đã crawl', String(result.pages_crawled)],
+            ['Trạng thái auth', allLoginDetected ? 'Phát hiện trang login ⚠' : 'Nội dung OK ✓'],
+          ].map(([k, v]) => (
+            <div key={k}>
+              <div style={{ fontSize: 10.5, color: 'var(--ink-3)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{k}</div>
+              <div style={{ fontSize: 14, fontWeight: 800, marginTop: 2, color: k === 'Trạng thái auth' ? (allLoginDetected ? 'var(--bad)' : 'var(--good)') : 'var(--ink)' }}>{v}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Results list */}
+        <div className="scroll" style={{ flex: 1, overflowY: 'auto', padding: '14px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {result.results.map((r, i) => {
+            const isOpen = expandedIdx === i;
+            return (
+              <div key={i} style={{
+                borderRadius: 'var(--r-md)', overflow: 'hidden',
+                border: `1px solid ${r.login_detected ? 'rgba(217,80,60,0.35)' : 'var(--glass-line)'}`,
+                background: r.login_detected ? 'rgba(217,80,60,0.06)' : 'rgba(255,255,255,0.52)',
+                backdropFilter: 'blur(12px)',
+              }}>
+                {/* Row header */}
+                <button onClick={() => setExpandedIdx(isOpen ? null : i)} style={{
+                  width: '100%', textAlign: 'left', padding: '10px 14px',
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 10,
+                }}>
+                  <Icon
+                    name={r.login_detected ? 'close' : 'checkCircle'}
+                    size={15}
+                    style={{ color: r.login_detected ? 'var(--bad)' : 'var(--good)', flexShrink: 0 }}
+                  />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {r.title || r.url}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--ink-3)', fontFamily: 'var(--font-mono)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {r.url}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                    <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--ink-3)' }}>
+                      {r.content_length.toLocaleString()} ký tự
+                    </span>
+                    {r.login_detected && (
+                      <span style={{
+                        fontSize: 10.5, fontWeight: 800, padding: '2px 8px', borderRadius: 'var(--r-pill)',
+                        background: 'rgba(217,80,60,0.18)', color: 'var(--bad)', border: '1px solid rgba(217,80,60,0.3)',
+                      }}>
+                        LOGIN
+                      </span>
+                    )}
+                    <Icon name={isOpen ? 'chevD' : 'chevR'} size={13} style={{ color: 'var(--ink-3)' }} />
+                  </div>
+                </button>
+
+                {/* Expanded */}
+                {isOpen && (
+                  <div style={{ borderTop: '1px solid var(--glass-edge)' }}>
+                    {r.login_detected && r.login_keywords_found.length > 0 && (
+                      <div style={{
+                        padding: '8px 14px', background: 'rgba(217,80,60,0.1)',
+                        borderBottom: '1px solid rgba(217,80,60,0.2)',
+                        display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
+                      }}>
+                        <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--bad)', flexShrink: 0 }}>Từ khoá login phát hiện:</span>
+                        {r.login_keywords_found.map(kw => (
+                          <span key={kw} style={{
+                            fontSize: 11, padding: '1px 8px', borderRadius: 'var(--r-pill)',
+                            background: 'rgba(217,80,60,0.2)', color: 'var(--bad)',
+                            fontFamily: 'var(--font-mono)',
+                          }}>{kw}</span>
+                        ))}
+                      </div>
+                    )}
+                    <div style={{ padding: '10px 14px' }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
+                        Nội dung crawl được (1500 ký tự đầu)
+                      </div>
+                      <div style={{
+                        background: 'rgba(40,55,30,0.06)', borderRadius: 'var(--r-sm)',
+                        padding: '10px 12px', fontSize: 12, color: 'var(--ink)', lineHeight: 1.65,
+                        whiteSpace: 'pre-wrap', fontFamily: 'var(--font-mono)',
+                        maxHeight: 280, overflowY: 'auto',
+                        border: '1px solid rgba(40,55,30,0.12)',
+                      }}>
+                        {r.preview || <span style={{ color: 'var(--ink-3)', fontStyle: 'italic' }}>(không có nội dung)</span>}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {result.results.length === 0 && (
+            <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--ink-3)', fontSize: 13 }}>
+              Không crawl được trang nào
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={{
+          padding: '12px 20px', borderTop: '1px solid var(--glass-line)', flexShrink: 0,
+          background: 'rgba(255,255,255,0.25)',
+          display: 'flex', alignItems: 'center', gap: 10,
+        }}>
+          {allLoginDetected ? (
+            <div style={{ fontSize: 12.5, color: 'var(--bad)', lineHeight: 1.5 }}>
+              <strong>Cookie chưa hoạt động.</strong> Kiểm tra lại: đúng domain? Cookie còn hạn? Thử copy toàn bộ header Cookie từ DevTools Network tab.
+            </div>
+          ) : (
+            <div style={{ fontSize: 12.5, color: 'var(--good)', lineHeight: 1.5 }}>
+              <strong>Nội dung hợp lệ.</strong> Bạn có thể nhấn "Nạp URL" để lưu vào ChromaDB.
+            </div>
+          )}
+          <button onClick={onClose} className="btn btn-soft btn-sm" style={{ marginLeft: 'auto', flexShrink: 0 }}>
+            Đóng
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── Main Page ───────────────────────────────────────────── */
 export default function RagChatPage() {
   const navigate  = useNavigate();
@@ -208,9 +595,16 @@ export default function RagChatPage() {
   const [model, setModel]           = useState<Model>('llama3:latest');
   const [embedModel, setEmbedModel] = useState<EmbedModel>('nomic-embed-text');
   const [urls, setUrls]             = useState<IngestedUrl[]>([]);
-  const [urlInput, setUrlInput]     = useState('');
-  const [addingUrl, setAddingUrl]   = useState(false);
+  const [urlInput, setUrlInput]       = useState('');
+  const [addingUrl, setAddingUrl]     = useState(false);
+  const [cookieInput, setCookieInput] = useState('');
+  const [showCookie, setShowCookie]   = useState(false);
   const [sideTab, setSideTab]       = useState<'settings' | 'sources'>('settings');
+  const [inspectUrl, setInspectUrl] = useState<{ url: string; title: string } | null>(null);
+  const [debugResult, setDebugResult] = useState<IngestDebugResult | null>(null);
+  const [debugUrl, setDebugUrl] = useState('');
+  const [debugLoading, setDebugLoading] = useState(false);
+  const [debugError, setDebugError] = useState<string | null>(null);
   const [ollamaOk, setOllamaOk]     = useState<boolean | null>(null);
   const [backendOk, setBackendOk]   = useState<boolean | null>(null);
   const [setupDone, setSetupDone]   = useState(false);
@@ -225,32 +619,80 @@ export default function RagChatPage() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
 
+  const [backendStarting, setBackendStarting] = useState(false);
+  const [backendErr, setBackendErr] = useState<string | null>(null);
+
   // Check backend + Ollama status
   const checkStatus = useCallback(async () => {
     invoke<boolean>('check_ollama_running')
       .then(ok => setOllamaOk(ok))
       .catch(() => setOllamaOk(false));
     try {
-      const r = await fetch('http://localhost:8080/models/status', { signal: AbortSignal.timeout(3000) });
+      const r = await fetch('http://localhost:8080/models/status', { signal: AbortSignal.timeout(5000) });
       if (r.ok) {
+        setBackendErr(null);
         const s = await r.json();
         setBackendOk(true);
         if (s.model) setModel(s.model);
         const list = await ragListSources().catch(() => []);
         setUrls(list.map((src: import('../lib/rag-api').SourceInfo) => ({ ...src, status: 'ok' as const })));
       } else {
+        const body = await r.text().catch(() => '');
+        setBackendErr(`HTTP ${r.status}: ${body.slice(0, 120)}`);
         setBackendOk(false);
       }
-    } catch {
+    } catch (e) {
+      setBackendErr(e instanceof Error ? e.message : String(e));
       setBackendOk(false);
     }
   }, []);
 
+  const handleStartBackend = async () => {
+    setBackendStarting(true);
+    setBackendErr(null);
+    try {
+      const result = await invoke<string>('start_rag_backend');
+      if (result === 'already_running') {
+        await checkStatus();
+        return;
+      }
+      // Poll tối đa 15 giây cho uvicorn khởi động
+      for (let i = 0; i < 15; i++) {
+        await new Promise(r => setTimeout(r, 1000));
+        try {
+          const r = await fetch('http://localhost:8080/models/status', { signal: AbortSignal.timeout(1500) });
+          if (r.ok) { await checkStatus(); return; }
+        } catch { /* chưa sẵn sàng */ }
+      }
+      await checkStatus(); // lần cuối để hiện lỗi cụ thể
+    } catch (e: unknown) {
+      setBackendErr(e instanceof Error ? e.message : String(e));
+      setBackendOk(false);
+    } finally {
+      setBackendStarting(false);
+    }
+  };
+
   useEffect(() => {
-    // Nếu đã có OpenAI key lưu sẵn → skip setup
     const savedKey = localStorage.getItem('rag_openai_key');
     if (savedKey) { setSetupDone(true); setOpenaiKey(savedKey); }
-    checkStatus();
+
+    // Spawn backend, sau đó poll cho đến khi ready (tối đa 12s)
+    (async () => {
+      try {
+        await invoke('start_rag_backend');
+      } catch (e) {
+        console.warn('[backend] start_rag_backend:', e);
+      }
+      for (let i = 0; i < 12; i++) {
+        await new Promise(r => setTimeout(r, 1000));
+        try {
+          const r = await fetch('http://localhost:8080/models/status', { signal: AbortSignal.timeout(1500) });
+          if (r.ok) { await checkStatus(); return; }
+        } catch { /* chưa sẵn sàng */ }
+      }
+      await checkStatus(); // hiện lỗi thực sự nếu không kết nối được
+    })();
   }, [checkStatus]);
 
   const refreshSources = useCallback(async () => {
@@ -326,7 +768,7 @@ export default function RagChatPage() {
     setUrlInput('');
     setAddingUrl(false);
     try {
-      const res = await ragIngestUrl(trimmed);
+      const res = await ragIngestUrl(trimmed, 1, openaiKey, cookieInput.trim() || undefined);
       setUrls(prev => prev.map(u =>
         u.url === trimmed && u.status === 'loading'
           ? { ...u, status: 'ok', chunks: res.chunks }
@@ -342,6 +784,23 @@ export default function RagChatPage() {
       ));
     }
     void tempId;
+  };
+
+  const handleDebugUrl = async () => {
+    const trimmed = urlInput.trim();
+    if (!trimmed) return;
+    setDebugLoading(true);
+    setDebugError(null);
+    setDebugResult(null);
+    setDebugUrl(trimmed);
+    try {
+      const res = await ragIngestDebug(trimmed, cookieInput.trim() || undefined);
+      setDebugResult(res);
+    } catch (e: unknown) {
+      setDebugError(e instanceof Error ? e.message : 'Lỗi không xác định');
+    } finally {
+      setDebugLoading(false);
+    }
   };
 
   const handleDeleteUrl = async (url: string) => {
@@ -370,6 +829,24 @@ export default function RagChatPage() {
             refreshSources();
           }}
           onDismiss={() => setSetupDone(true)}
+        />
+      )}
+
+      {/* Chunk inspector */}
+      {inspectUrl && (
+        <ChunkInspector
+          url={inspectUrl.url}
+          title={inspectUrl.title}
+          onClose={() => setInspectUrl(null)}
+        />
+      )}
+
+      {/* Debug result modal */}
+      {debugResult && (
+        <DebugResultModal
+          result={debugResult}
+          url={debugUrl}
+          onClose={() => { setDebugResult(null); setDebugError(null); }}
         />
       )}
 
@@ -479,15 +956,30 @@ export default function RagChatPage() {
         }}>
           <Icon name="lightbulb" size={15} style={{ color: '#ffcca0', flexShrink: 0 }} />
           <span style={{ flex: 1, fontSize: 12.5, color: '#fff', lineHeight: 1.5 }}>
-            Python backend chưa chạy. Mở terminal và chạy:&nbsp;
-            <code style={{ fontFamily: 'var(--font-mono)', background: 'rgba(255,255,255,0.15)', padding: '1px 7px', borderRadius: 4 }}>
-              cd backend &amp;&amp; uvicorn main:app --port 8080
-            </code>
+            {backendStarting
+              ? 'Đang khởi động Python backend...'
+              : <>Python backend chưa chạy.{backendErr && <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, opacity: 0.8, marginLeft: 6 }}>({backendErr})</span>}</>}
           </span>
+          {!backendStarting && (
+            <button onClick={handleStartBackend} style={{
+              padding: '4px 14px', borderRadius: 'var(--r-pill)', fontSize: 12, fontWeight: 700,
+              background: 'var(--accent)', border: 'none',
+              color: 'var(--accent-ink)', cursor: 'pointer', flexShrink: 0,
+            }}>
+              Khởi động
+            </button>
+          )}
+          {backendStarting && (
+            <span style={{
+              width: 16, height: 16, borderRadius: '50%',
+              border: '2px solid rgba(255,255,255,0.6)', borderTopColor: 'transparent',
+              animation: 'rag-spin 0.7s linear infinite', display: 'inline-block', flexShrink: 0,
+            }} />
+          )}
           <button onClick={checkStatus} style={{
             padding: '4px 12px', borderRadius: 'var(--r-pill)', fontSize: 12, fontWeight: 700,
             background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.3)',
-            color: '#fff', cursor: 'pointer',
+            color: '#fff', cursor: 'pointer', flexShrink: 0,
           }}>
             Kiểm tra lại
           </button>
@@ -716,10 +1208,11 @@ export default function RagChatPage() {
                 {/* Add URL button / form */}
                 {addingUrl ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {/* URL input */}
                     <input
                       value={urlInput}
                       onChange={e => setUrlInput(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && handleAddUrl()}
+                      onKeyDown={e => e.key === 'Enter' && !showCookie && handleAddUrl()}
                       placeholder="https://..."
                       autoFocus
                       style={{
@@ -730,11 +1223,71 @@ export default function RagChatPage() {
                         fontFamily: 'var(--font-mono)',
                       }}
                     />
+
+                    {/* Toggle cookie */}
+                    <button
+                      onClick={() => setShowCookie(v => !v)}
+                      style={{
+                        background: 'none', border: 'none', cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', gap: 6,
+                        fontSize: 11.5, color: showCookie ? 'var(--accent)' : 'rgba(255,255,255,0.4)',
+                        padding: '2px 0', alignSelf: 'flex-start',
+                      }}
+                    >
+                      <Icon name="bookmark" size={12} />
+                      {showCookie ? 'Ẩn cookie' : 'Trang cần đăng nhập? Thêm cookie'}
+                    </button>
+
+                    {/* Cookie input */}
+                    {showCookie && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', lineHeight: 1.5 }}>
+                          Mở DevTools (F12) → Network → click request → copy giá trị header <code style={{ background: 'rgba(255,255,255,0.1)', padding: '1px 5px', borderRadius: 3 }}>Cookie</code>
+                        </div>
+                        <textarea
+                          value={cookieInput}
+                          onChange={e => setCookieInput(e.target.value)}
+                          placeholder="session=abc123; token=xyz; csrftoken=..."
+                          rows={3}
+                          style={{
+                            padding: '8px 10px', borderRadius: 'var(--r-sm)',
+                            background: 'rgba(255,255,255,0.08)',
+                            border: '1px solid rgba(255,255,255,0.18)',
+                            color: '#fff', fontSize: 11.5, outline: 'none',
+                            fontFamily: 'var(--font-mono)', resize: 'vertical',
+                            lineHeight: 1.5,
+                          }}
+                        />
+                      </div>
+                    )}
+
+                    {debugError && (
+                      <div style={{
+                        padding: '7px 10px', borderRadius: 'var(--r-sm)', fontSize: 11.5,
+                        background: 'rgba(217,80,60,0.15)', border: '1px solid rgba(217,80,60,0.3)',
+                        color: 'var(--bad)', fontFamily: 'var(--font-mono)', lineHeight: 1.5,
+                      }}>
+                        {debugError}
+                      </div>
+                    )}
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button onClick={handleAddUrl} className="btn btn-primary btn-sm" style={{ flex: 1, fontSize: 12 }}>
                         <Icon name="globe" size={13} /> Nạp URL
                       </button>
-                      <button onClick={() => { setAddingUrl(false); setUrlInput(''); }} className="btn btn-ghost btn-sm" style={{ fontSize: 12 }}>
+                      <button
+                        onClick={handleDebugUrl}
+                        disabled={debugLoading || !urlInput.trim()}
+                        className="btn btn-soft btn-sm"
+                        style={{ fontSize: 12, gap: 5 }}
+                        title="Kiểm tra nội dung crawl và xác thực cookie"
+                      >
+                        {debugLoading
+                          ? <span style={{ display: 'inline-block', width: 12, height: 12, borderRadius: '50%', border: '2px solid currentColor', borderTopColor: 'transparent', animation: 'rag-spin 0.7s linear infinite' }} />
+                          : <Icon name="eye" size={12} />
+                        }
+                        {debugLoading ? 'Đang kiểm tra...' : 'Kiểm tra'}
+                      </button>
+                      <button onClick={() => { setAddingUrl(false); setUrlInput(''); setCookieInput(''); setShowCookie(false); setDebugError(null); }} className="btn btn-ghost btn-sm" style={{ fontSize: 12 }}>
                         Huỷ
                       </button>
                     </div>
@@ -779,10 +1332,22 @@ export default function RagChatPage() {
                           : (u.errorMsg ?? 'Lỗi không xác định')}
                       </div>
                     </div>
-                    <button className="rag-del" onClick={() => handleDeleteUrl(u.url)}
-                      style={{ opacity: 0, transition: 'opacity 160ms', background: 'none', border: 'none', color: 'rgba(255,255,255,0.35)', cursor: 'pointer', padding: 2, flexShrink: 0 }}>
-                      <Icon name="trash" size={14} />
-                    </button>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flexShrink: 0 }}>
+                      {u.status === 'ok' && (
+                        <button
+                          className="rag-del"
+                          onClick={() => setInspectUrl({ url: u.url, title: u.title || u.url })}
+                          title="Xem dữ liệu chunk"
+                          style={{ opacity: 0, transition: 'opacity 160ms', background: 'none', border: 'none', color: 'rgba(255,255,255,0.55)', cursor: 'pointer', padding: 2 }}>
+                          <Icon name="eye" size={14} />
+                        </button>
+                      )}
+                      <button className="rag-del" onClick={() => handleDeleteUrl(u.url)}
+                        title="Xoá nguồn"
+                        style={{ opacity: 0, transition: 'opacity 160ms', background: 'none', border: 'none', color: 'rgba(255,255,255,0.35)', cursor: 'pointer', padding: 2 }}>
+                        <Icon name="trash" size={14} />
+                      </button>
+                    </div>
                   </div>
                 ))}
 

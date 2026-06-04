@@ -22,6 +22,6 @@ chromadb>=0.5.0
 # Hybrid retrieval
 rank-bm25>=0.2.2
 
-# Web crawling
-beautifulsoup4>=4.12.0
-lxml>=5.0.0
+# Web crawling — Playwright được quản lý nội bộ bởi crawl4ai (qua patchright)
+# Sau khi pip install, chạy: python -m playwright install chromium
+crawl4ai>=0.8.0

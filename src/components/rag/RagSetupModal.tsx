@@ -3,7 +3,7 @@ import Icon from '../common/Icon';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import {
-  ragModelStatus, ragPullModel, ragValidateOpenAIKey,
+  ragModelStatus, pingBackend, ragPullModel, ragPullEmbedModel, ragValidateOpenAIKey,
   type ModelStatus, type PullProgress,
 } from '../../lib/rag-api';
 
@@ -14,11 +14,21 @@ type Step =
   | 'install_done'        // winget xong, chờ Ollama khởi động
   | 'starting_ollama'     // đang start ollama serve
   | 'backend_offline'     // Ollama chạy OK nhưng Python backend chưa start
+  | 'starting_backend'    // đang auto-start Python backend
+  | 'no_embed'            // LLM model OK nhưng chưa có embed model
+  | 'pulling_embed'       // đang pull embed model
   | 'no_model'
   | 'pulling'
   | 'openai_setup'
   | 'openai_testing'
   | 'ready';
+
+interface BackendDiagnostics {
+  port_open: boolean;
+  backend_dir: string | null;
+  log: string;
+  pid_on_port: number | null;
+}
 
 interface DownloadProgress {
   downloaded: number;
@@ -52,37 +62,110 @@ export default function RagSetupModal({ onReady, onDismiss }: Props) {
   const [step, setStep]         = useState<Step>('checking');
   const [status, setStatus]     = useState<ModelStatus | null>(null);
   const [pull, setPull]         = useState<PullProgress | null>(null);
+  const [embedPull, setEmbedPull] = useState<PullProgress | null>(null);
   const [pullLabel, setPullLabel] = useState('Chuẩn bị...');
   const [openaiKey, setOpenaiKey]   = useState('');
   const [keyError, setKeyError]     = useState('');
   const [dlProgress, setDlProgress] = useState<DownloadProgress | null>(null);
+  const [diagnostics, setDiagnostics] = useState<BackendDiagnostics | null>(null);
+  const [showLog, setShowLog] = useState(false);
+  const [backendStartMsg, setBackendStartMsg] = useState('');
   const abortRef = useRef<AbortController | null>(null);
 
-  // Check status on mount — dùng Rust check trực tiếp để không phụ thuộc Python backend
+  const loadDiagnostics = async () => {
+    const d = await invoke<BackendDiagnostics>('get_backend_diagnostics').catch(() => null);
+    setDiagnostics(d);
+    return d;
+  };
+
+  const startBackendAuto = async () => {
+    setStep('starting_backend');
+    setBackendStartMsg('Đang khởi động uvicorn...');
+    setDiagnostics(null);
+
+    // Gọi start_rag_backend Tauri command
+    let spawnResult = '';
+    try {
+      spawnResult = await invoke<string>('start_rag_backend');
+    } catch (e: unknown) {
+      const d = await loadDiagnostics();
+      setBackendStartMsg(`Lỗi: ${String(e)}\n${d?.log ?? ''}`);
+      setStep('backend_offline');
+      return;
+    }
+
+    if (spawnResult === 'already_running') {
+      setBackendStartMsg('Backend đã chạy. Đang kiểm tra...');
+    } else {
+      setBackendStartMsg(`Đã spawn (${spawnResult}). Chờ uvicorn load...`);
+    }
+
+    // Bước 1: Poll /ping mỗi 2s tối đa 30s — /ping không cần Ollama nên nhanh
+    let alive = false;
+    for (let i = 0; i < 15; i++) {
+      await new Promise(r => setTimeout(r, 2000));
+      setBackendStartMsg(`Chờ backend khởi động... (${(i + 1) * 2}s / 30s)`);
+      alive = await pingBackend();
+      if (alive) break;
+    }
+
+    if (!alive) {
+      const d = await loadDiagnostics();
+      setDiagnostics(d);
+      setBackendStartMsg('Backend không phản hồi sau 30s. Xem log bên dưới để tìm lỗi.');
+      setStep('backend_offline');
+      return;
+    }
+
+    // Bước 2: Backend alive → gọi /models/status (có thể chậm vì gọi Ollama)
+    setBackendStartMsg('Backend đã chạy, đang kiểm tra model...');
+    const s = await ragModelStatus();
+    if (!s.backend_offline) {
+      setStatus(s);
+      resolveStep(s);
+      return;
+    }
+
+    // Timeout — load diagnostics để hiện debug
+    const d = await loadDiagnostics();
+    setDiagnostics(d);
+    setBackendStartMsg('Timeout sau 30s. Xem log bên dưới để tìm lỗi.');
+    setStep('backend_offline');
+  };
+
+  const resolveStep = (s: ModelStatus) => {
+    if (s.backend_offline)   { setStep('backend_offline'); return; }
+    if (!s.model_available)  { setStep('no_model'); return; }
+    if (!s.embed_ready)      { setStep('no_embed'); return; }
+    setStep('ready');
+    onReady({ mode: 'ollama' });
+  };
+
+  // Check status on mount
   useEffect(() => {
     (async () => {
-      // 1. Kiểm tra Ollama có chạy không (port 11434)
       const ollamaRunning = await invoke<boolean>('check_ollama_running').catch(() => false);
-
-      if (!ollamaRunning) {
-        setStep('no_ollama');
-        return;
-      }
-
-      // 2. Ollama chạy — check qua Python backend để biết model status
+      if (!ollamaRunning) { setStep('no_ollama'); return; }
       const s = await ragModelStatus();
       setStatus(s);
-
-      if (s.backend_offline) {
-        setStep('backend_offline');
-      } else if (s.model_available) {
-        setStep('ready');
-        onReady({ mode: 'ollama' });
-      } else {
-        setStep('no_model');
-      }
+      resolveStep(s);
     })();
-  }, [onReady]);
+  }, [onReady]);  // eslint-disable-line
+
+  // Pull embed model
+  const startPullEmbed = async () => {
+    setStep('pulling_embed');
+    setEmbedPull(null);
+    abortRef.current = new AbortController();
+    try {
+      await ragPullEmbedModel((p) => {
+        setEmbedPull(p);
+        if (p.done) { setStep('ready'); onReady({ mode: 'ollama' }); }
+      }, abortRef.current.signal);
+    } catch (e: unknown) {
+      if ((e as Error)?.name !== 'AbortError') setStep('no_embed');
+    }
+  };
 
   // Pull model
   const startPull = async () => {
@@ -218,7 +301,7 @@ export default function RagSetupModal({ onReady, onDismiss }: Props) {
             <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--ink)' }}>RAG Chat</div>
             <div style={{ fontSize: 13, color: 'var(--ink-3)', marginTop: 2 }}>Thiết lập trước khi bắt đầu</div>
           </div>
-          {onDismiss && step !== 'pulling' && step !== 'downloading_ollama' && (
+          {onDismiss && step !== 'pulling' && step !== 'downloading_ollama' && step !== 'pulling_embed' && (
             <button onClick={onDismiss}
               style={{
                 width: 34, height: 34, borderRadius: 'var(--r-pill)',
@@ -391,9 +474,20 @@ export default function RagSetupModal({ onReady, onDismiss }: Props) {
           </div>
         )}
 
+        {/* ── starting_backend ── đang auto-start Python backend */}
+        {step === 'starting_backend' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'center', padding: '20px 0' }}>
+            <div style={{ width: 40, height: 40, borderRadius: '50%', border: '3px solid var(--accent)', borderTopColor: 'transparent', animation: 'rag-spin 0.8s linear infinite' }} />
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)' }}>Đang khởi động Python backend...</div>
+            <div style={{ fontSize: 12.5, color: 'var(--ink-2)', textAlign: 'center', fontFamily: 'var(--font-mono)' }}>
+              {backendStartMsg}
+            </div>
+          </div>
+        )}
+
         {/* ── backend_offline ── Ollama chạy nhưng Python backend chưa start */}
         {step === 'backend_offline' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div style={{
               padding: '14px 16px', borderRadius: 'var(--r-md)',
               background: 'rgba(217,232,157,0.1)', border: '1px solid rgba(217,232,157,0.3)',
@@ -402,26 +496,23 @@ export default function RagSetupModal({ onReady, onDismiss }: Props) {
               <Icon name="checkCircle" size={18} style={{ color: 'var(--good)', flexShrink: 0, marginTop: 1 }} />
               <div>
                 <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--ink)' }}>Ollama đang chạy</div>
-                <div style={{ fontSize: 12.5, color: 'var(--ink-2)', marginTop: 3 }}>Cần khởi động thêm Python backend để chat.</div>
+                <div style={{ fontSize: 12.5, color: 'var(--ink-2)', marginTop: 3 }}>Python backend (port 8080) chưa phản hồi.</div>
               </div>
             </div>
 
-            <div style={{
-              padding: '14px 16px', borderRadius: 'var(--r-md)',
-              background: 'rgba(217,138,106,0.08)', border: '1px solid rgba(217,138,106,0.25)',
-              fontSize: 12.5, color: 'var(--ink-2)', lineHeight: 1.7,
-            }}>
-              Mở terminal trong thư mục dự án và chạy:<br />
-              <code style={{ fontFamily: 'var(--font-mono)', background: 'rgba(40,55,30,0.08)', padding: '4px 8px', borderRadius: 4, display: 'inline-block', marginTop: 6, fontSize: 12 }}>
-                cd backend &amp;&amp; uvicorn main:app --reload
-              </code>
-            </div>
+            {/* Nút auto-start */}
+            <button className="btn btn-primary" style={{ justifyContent: 'center', gap: 8 }} onClick={startBackendAuto}>
+              <Icon name="arrowR" size={16} /> Tự động khởi động backend
+            </button>
 
+            {/* Kiểm tra lại thủ công */}
             <button
-              className="btn btn-primary"
+              className="btn btn-soft btn-sm"
               style={{ justifyContent: 'center', gap: 8 }}
               onClick={async () => {
                 setStep('checking');
+                const alive = await pingBackend();
+                if (!alive) { setStep('backend_offline'); return; }
                 const s = await ragModelStatus();
                 setStatus(s);
                 if (s.backend_offline) { setStep('backend_offline'); return; }
@@ -429,12 +520,61 @@ export default function RagSetupModal({ onReady, onDismiss }: Props) {
                 else setStep('no_model');
               }}
             >
-              <Icon name="refresh" size={16} /> Kiểm tra lại
+              <Icon name="refresh" size={14} /> Kiểm tra lại (thủ công)
             </button>
+
+            {/* Manual command */}
+            <div style={{
+              padding: '12px 14px', borderRadius: 'var(--r-md)',
+              background: 'rgba(217,138,106,0.08)', border: '1px solid rgba(217,138,106,0.25)',
+              fontSize: 12, color: 'var(--ink-2)', lineHeight: 1.7,
+            }}>
+              Hoặc mở terminal và chạy thủ công:<br />
+              <code style={{ fontFamily: 'var(--font-mono)', background: 'rgba(40,55,30,0.08)', padding: '4px 8px', borderRadius: 4, display: 'inline-block', marginTop: 5, fontSize: 11.5 }}>
+                cd backend &amp;&amp; uvicorn main:app --port 8080
+              </code>
+            </div>
+
+            {/* Debug section */}
+            <div style={{ borderTop: '1px solid var(--glass-line)', paddingTop: 12 }}>
+              <button
+                onClick={async () => {
+                  if (!diagnostics) await loadDiagnostics();
+                  setShowLog(v => !v);
+                }}
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  fontSize: 12, color: 'var(--ink-3)', display: 'flex', alignItems: 'center', gap: 6,
+                }}
+              >
+                <Icon name="chevR" size={13} style={{ transform: showLog ? 'rotate(90deg)' : 'none', transition: '150ms' }} />
+                Debug info
+              </button>
+
+              {showLog && diagnostics && (
+                <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ fontSize: 11.5, color: 'var(--ink-3)', lineHeight: 1.8, fontFamily: 'var(--font-mono)' }}>
+                    <div>port_open: <strong style={{ color: diagnostics.port_open ? 'var(--good)' : 'var(--bad)' }}>{String(diagnostics.port_open)}</strong></div>
+                    <div>pid_on_port: <strong>{diagnostics.pid_on_port ?? 'none'}</strong></div>
+                    <div>backend_dir: <span style={{ wordBreak: 'break-all' }}>{diagnostics.backend_dir ?? 'not found'}</span></div>
+                  </div>
+                  <div style={{ fontSize: 11, fontFamily: 'var(--font-mono)', background: 'rgba(40,55,30,0.06)', borderRadius: 'var(--r-sm)', padding: '10px 12px', maxHeight: 160, overflowY: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all', color: 'var(--ink-2)', lineHeight: 1.6 }}>
+                    {diagnostics.log || '(log trống)'}
+                  </div>
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    style={{ alignSelf: 'flex-start', fontSize: 11 }}
+                    onClick={loadDiagnostics}
+                  >
+                    <Icon name="refresh" size={12} /> Làm mới
+                  </button>
+                </div>
+              )}
+            </div>
 
             <button onClick={() => setStep('openai_setup')} style={{
               background: 'none', border: 'none', cursor: 'pointer',
-              fontSize: 13, color: 'var(--ink-3)', textDecoration: 'underline', textAlign: 'center',
+              fontSize: 12, color: 'var(--ink-3)', textDecoration: 'underline', textAlign: 'center',
             }}>
               Dùng OpenAI API thay thế (không cần backend)
             </button>
@@ -509,6 +649,82 @@ export default function RagSetupModal({ onReady, onDismiss }: Props) {
             </button>
           </div>
         )}
+
+        {/* ── no_embed ── LLM model OK nhưng chưa có embed model */}
+        {step === 'no_embed' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{
+              padding: '14px 16px', borderRadius: 'var(--r-md)',
+              background: 'rgba(217,138,106,0.12)', border: '1px solid rgba(217,138,106,0.3)',
+              display: 'flex', gap: 12, alignItems: 'flex-start',
+            }}>
+              <Icon name="lightbulb" size={18} style={{ color: 'var(--warn)', flexShrink: 0, marginTop: 1 }} />
+              <div>
+                <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--ink)' }}>Chưa có Embedding Model</div>
+                <div style={{ fontSize: 12.5, color: 'var(--ink-2)', marginTop: 4, lineHeight: 1.55 }}>
+                  RAG Chat đang dùng tìm kiếm từ khoá (BM25) thay thế. Để tìm kiếm ngữ nghĩa chính xác hơn, hãy tải <code style={{ fontFamily: 'var(--font-mono)', background: 'rgba(40,55,30,0.08)', padding: '1px 5px', borderRadius: 4 }}>nomic-embed-text</code> (~274 MB).
+                </div>
+              </div>
+            </div>
+
+            <div style={{ padding: '16px 18px', borderRadius: 'var(--r-md)', background: 'rgba(255,255,255,0.5)', border: '1px solid var(--glass-line)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)' }}>nomic-embed-text</span>
+                <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>~274 MB</span>
+              </div>
+              <div style={{ fontSize: 12.5, color: 'var(--ink-2)', lineHeight: 1.55, marginBottom: 14 }}>
+                Model embedding nhỏ gọn, chạy offline. Giúp RAG tìm đúng tài liệu theo nghĩa câu hỏi thay vì chỉ khớp từ khóa.
+              </div>
+              <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', gap: 8 }} onClick={startPullEmbed}>
+                <Icon name="arrowR" size={17} /> Tải Embedding Model
+              </button>
+            </div>
+
+            <button
+              onClick={() => { setStep('ready'); onReady({ mode: 'ollama' }); }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--ink-3)', textDecoration: 'underline', textAlign: 'center' }}
+            >
+              Bỏ qua, dùng BM25 tạm thời
+            </button>
+          </div>
+        )}
+
+        {/* ── pulling_embed ── đang pull nomic-embed-text */}
+        {step === 'pulling_embed' && (() => {
+          const embedPct = embedPull?.total && embedPull.completed
+            ? Math.round((embedPull.completed / embedPull.total) * 100)
+            : 0;
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--ink)' }}>Đang tải nomic-embed-text...</div>
+
+              <Bar pct={embedPct} />
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 12.5, color: 'var(--ink-2)', fontFamily: 'var(--font-mono)' }}>
+                  {embedPull?.status ?? 'Chuẩn bị...'}
+                </span>
+                <span style={{ fontSize: 12.5, color: 'var(--accent-deep)', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
+                  {embedPct > 0 ? `${embedPct}%` : ''}
+                </span>
+              </div>
+
+              {embedPull?.total && embedPull.completed ? (
+                <div style={{ fontSize: 11.5, color: 'var(--ink-3)', textAlign: 'center' }}>
+                  {(embedPull.completed / 1024 / 1024).toFixed(0)} MB / {(embedPull.total / 1024 / 1024).toFixed(0)} MB
+                </div>
+              ) : null}
+
+              <button
+                onClick={() => { abortRef.current?.abort(); setStep('no_embed'); }}
+                className="btn btn-ghost btn-sm"
+                style={{ alignSelf: 'center' }}
+              >
+                Huỷ
+              </button>
+            </div>
+          );
+        })()}
 
         {/* ── openai_setup ── */}
         {(step === 'openai_setup' || step === 'openai_testing') && (
