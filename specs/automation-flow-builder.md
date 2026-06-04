@@ -1,8 +1,12 @@
-# Automation Flow Builder — Crawl trang theo luồng tự định nghĩa
+# Automation Flow Builder (React Flow Version)
 
 ## Ý tưởng cốt lõi
 
-Thay vì crawler tự đoán phải click vào đâu, **người dùng tự thiết kế luồng tương tác** — định nghĩa từng bước click theo đúng thứ tự mình muốn. Hệ thống thực thi theo đúng luồng đó, mỗi bước click xong thì đọc nội dung mới xuất hiện và tích lũy vào kho dữ liệu.
+Thay vì crawler tự đoán phải click vào đâu, **người dùng sẽ thiết kế một workflow trực quan bằng React Flow**.
+
+Mỗi thao tác (mở URL, click, đợi, extract dữ liệu, lưu vector...) là một Node trên canvas. Người dùng chỉ cần kéo thả và nối các node với nhau để định nghĩa luồng thực thi.
+
+Hệ thống sẽ chạy workflow theo đúng thứ tự kết nối giữa các node. được code băng React Flow
 
 ---
 
@@ -10,86 +14,282 @@ Thay vì crawler tự đoán phải click vào đâu, **người dùng tự thi�
 
 ```
 Người dùng mở app
-    │
-    ├─ Nhập URL trang muốn crawl
-    │
-    ├─ Thêm các node vào flow (theo thứ tự):
-    │     Node 1: click ".question-item:nth-child(1)"
-    │     Node 2: click ".question-item:nth-child(2)"
-    │     Node 3: click "#btn-next-page"
-    │     Node 4: click ".question-item:nth-child(1)"
-    │     ...
-    │
-    ├─ Nhấn "Chạy flow"
-    │
-    └─ Hệ thống thực thi:
-          Vào trang → đọc nội dung gốc
-          → Click Node 1 → có nội dung mới? → append
-          → Click Node 2 → có nội dung mới? → append
-          → Click Node 3 → có nội dung mới? → append
-          → ...
-          → Hoàn tất → lưu toàn bộ vào ChromaDB
+      │
+      ├── Nhập URL
+      │
+      ├── Kéo các node vào canvas
+      │
+      │      ┌─────────┐
+      │      │  Start  │
+      │      └────┬────┘
+      │           │
+      │           ▼
+      │   ┌──────────────┐
+      │   │ Click Item 1 │
+      │   └──────┬───────┘
+      │           │
+      │           ▼
+      │   ┌──────────────┐
+      │   │ Click Item 2 │
+      │   └──────┬───────┘
+      │           │
+      │           ▼
+      │   ┌──────────────┐
+      │   │ Next Page    │
+      │   └──────┬───────┘
+      │           │
+      │           ▼
+      │   ┌──────────────┐
+      │   │ Extract Text │
+      │   └──────┬───────┘
+      │           │
+      │           ▼
+      │      ┌─────────┐
+      │      │  Save   │
+      │      └─────────┘
+      │
+      ├── Nhấn Run
+      │
+      └── Backend thực thi theo workflow
 ```
 
 ---
 
-## Cấu trúc một Node
+## Giao diện
 
-Mỗi node trong flow là một bước tương tác, gồm các thông tin:
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│ Automation Flow Builder                                              │
+├──────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│ URL: [ https://example.com/exam/123            ] [Preview]           │
+│                                                                      │
+├───────────────┬──────────────────────────────────────────────────────┤
+│               │                                                      │
+│ Node Library  │                React Flow Canvas                    │
+│               │                                                      │
+│ Start         │          ┌─────────┐                                 │
+│ Open URL      │          │ START   │                                 │
+│ Click         │          └────┬────┘                                 │
+│ Wait          │               │                                      │
+│ Extract       │               ▼                                      │
+│ Save          │      ┌────────────────┐                              │
+│ Loop          │      │ Click Item 1  │                              │
+│ Condition     │      └────────┬──────┘                              │
+│               │               │                                      │
+│               │               ▼                                      │
+│               │      ┌────────────────┐                              │
+│               │      │ Next Page     │                              │
+│               │      └────────┬──────┘                              │
+│               │               │                                      │
+│               │               ▼                                      │
+│               │      ┌────────────────┐                              │
+│               │      │ Extract Text  │                              │
+│               │      └────────┬──────┘                              │
+│               │               │                                      │
+│               │               ▼                                      │
+│               │          ┌─────────┐                                 │
+│               │          │ SAVE    │                                 │
+│               │          └─────────┘                                 │
+│                                                                      │
+├───────────────┴──────────────────────────────────────────────────────┤
+│                                                                      │
+│ [ Run ] [ Save ] [ Export JSON ] [ Import JSON ]                    │
+│                                                                      │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Node Properties
+
+Khi chọn một node, panel bên phải sẽ hiển thị thông tin cấu hình.
+
+```
+┌──────────────────────────────┐
+│      Node Properties         │
+├──────────────────────────────┤
+│ Type                         │
+│ Click                        │
+│                              │
+│ Label                        │
+│ [ Question 1             ]   │
+│                              │
+│ Selector                     │
+│ [ .question:nth-child(1) ]   │
+│                              │
+│ Wait After Action            │
+│ [ 800 ] ms                   │
+│                              │
+│ Repeat                       │
+│ [ 1 ]                        │
+│                              │
+│ Continue On Error            │
+│ ☑ Enabled                    │
+│                              │
+│ [ Save ]                     │
+└──────────────────────────────┘
+```
+
+---
+
+## Cấu trúc Node
 
 ```typescript
-interface AutomationNode {
-  id: string;               // uuid, dùng để sort/drag
-  order: number;            // thứ tự thực thi
-  selector: string;         // CSS selector của element cần click
-                            // ví dụ: ".question-row", "#btn-next", "li.tab:nth-child(2)"
-  label: string;            // tên do người dùng đặt, ví dụ: "Câu hỏi 1", "Next page"
-  wait_ms: number;          // đợi bao lâu sau khi click (ms) để content load
-                            // mặc định: 800ms
-  repeat: number;           // click bao nhiêu lần (mặc định: 1)
-                            // dùng khi cần click nhiều lần liên tiếp
+export interface FlowNode {
+  id: string;
+
+  type:
+    | "start"
+    | "open_url"
+    | "click"
+    | "wait"
+    | "extract"
+    | "condition"
+    | "loop"
+    | "save"
+    | "end";
+
+  position: {
+    x: number;
+    y: number;
+  };
+
+  data: {
+    label: string;
+    selector?: string;
+    wait_ms?: number;
+    repeat?: number;
+    continue_on_error?: boolean;
+  };
 }
 ```
 
 ---
 
-## Giao diện Flow Builder
+## Cấu trúc Edge
 
-```
-┌─────────────────────────────────────────────────────────┐
-│  Automation Flow Builder                                │
-│                                                         │
-│  URL: https://example.com/exam/123  [Xem trước]        │
-│                                                         │
-│  ┌─────────────────────────────────────────────────┐   │
-│  │  Flow (kéo thả để sắp xếp)                      │   │
-│  │                                                  │   │
-│  │  [1]  Câu hỏi 1    .question:nth-child(1)  800ms│   │
-│  │  [2]  Câu hỏi 2    .question:nth-child(2)  800ms│   │
-│  │  [3]  Câu hỏi 3    .question:nth-child(3)  800ms│   │
-│  │  [4]  Trang tiếp   #btn-next               1500ms│   │
-│  │  [5]  Câu hỏi 1    .question:nth-child(1)  800ms│   │
-│  │                                                  │   │
-│  │  [+ Thêm node]                                   │   │
-│  └─────────────────────────────────────────────────┘   │
-│                                                         │
-│  [Chạy flow]  [Lưu flow]  [Xoá tất cả]                 │
-└─────────────────────────────────────────────────────────┘
+```typescript
+export interface FlowEdge {
+  id: string;
+  source: string;
+  target: string;
+  label?: string;
+}
 ```
 
-### Form thêm node:
+---
+
+## Flow JSON
+
+```json
+{
+  "url": "https://example.com/exam/123",
+  "nodes": [
+    {
+      "id": "start",
+      "type": "start",
+      "position": { "x": 100, "y": 100 },
+      "data": { "label": "Start" }
+    },
+    {
+      "id": "click1",
+      "type": "click",
+      "position": { "x": 350, "y": 100 },
+      "data": {
+        "label": "Question 1",
+        "selector": ".question:nth-child(1)",
+        "wait_ms": 800,
+        "repeat": 1
+      }
+    }
+  ],
+  "edges": [
+    { "id": "e1", "source": "start", "target": "click1" }
+  ]
+}
+```
+
+---
+
+## Backend Execution (DAG)
+
+Backend chuyển React Flow thành Directed Acyclic Graph rồi thực thi tuần tự.
+
+```python
+graph = build_graph(nodes, edges)
+current = find_start_node(graph)
+
+while current:
+    execute_node(current)
+    next_nodes = graph[current.id]
+    if not next_nodes:
+        break
+    current = next_nodes[0]
+```
+
+---
+
+## Logic của Node Click
+
+```python
+el = page.locator(node.data.selector).first
+
+if await el.count() == 0:
+    return
+
+for _ in range(node.data.repeat):
+    await el.click()
+    await page.wait_for_timeout(node.data.wait_ms)
+
+new_content = await page.inner_text("body")
+diff = compare_content(old_content, new_content)
+append_to_memory(diff)
+```
+
+---
+
+## Các loại Node hỗ trợ
+
+### Browser
+- Start, Open URL, Refresh, Back, End
+
+### Interaction
+- Click, Double Click, Hover, Type Text, Press Key, Upload File
+
+### Wait
+- Wait Time, Wait Element, Wait Network Idle
+
+### Data
+- Extract Text, Extract HTML, Screenshot, Save Variable
+
+### Logic
+- If, Switch, Loop, Repeat Until
+
+### RAG
+- Chunk Text, Embedding, Save ChromaDB, Save PostgreSQL, Export Markdown
+
+---
+
+## Ưu điểm so với Flow dạng List
+
+| List Builder     | React Flow Builder                   |
+| ---------------- | ------------------------------------ |
+| Chỉ chạy tuần tự | Hỗ trợ DAG                           |
+| Khó mở rộng      | Thêm node mới dễ dàng                |
+| Không có branch  | Có If / Loop / Switch                |
+| Chỉ drag sort    | Kéo thả trực quan                    |
+| Khó debug        | Hiển thị trạng thái từng node        |
+| Không giống n8n  | UI tương tự n8n / Flowise / LangFlow |
+
+---
+
+## Mục tiêu cuối cùng
+
+Xây dựng một Workflow Builder chuyên cho Web Crawling + RAG. Người dùng chỉ cần kéo thả các node trên React Flow, kết nối chúng với nhau và nhấn Run để hệ thống tự động crawl theo đúng workflow đã thiết kế.
 
 ```
-┌──────────────────────────────────────┐
-│  Thêm node mới                       │
-│                                      │
-│  Tên:     [Câu hỏi 1            ]   │
-│  Selector:[.question:nth-child(1)]   │
-│  Đợi (ms):[800                   ]   │
-│  Lặp lại: [1                     ]   │
-│                                      │
-│  [Thêm]  [Huỷ]                       │
-└──────────────────────────────────────┘
+Start → Open URL → Login → Click Question → Extract Text → Chunk → Embedding → Save ChromaDB → End
 ```
 
 ---

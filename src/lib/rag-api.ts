@@ -291,3 +291,34 @@ export async function ragDeleteSource(url: string): Promise<number> {
   const data = await r.json();
   return data.deleted ?? 0;
 }
+
+// ── Automation Flow ───────────────────────────────────────
+export interface FlowRunNode {
+  id: string;
+  data: Record<string, unknown>;
+}
+
+export interface FlowRunEdge {
+  id: string;
+  source: string;
+  target: string;
+}
+
+export async function ragIngestFlow(
+  url: string,
+  nodes: FlowRunNode[],
+  edges: FlowRunEdge[],
+  openaiKey?: string,
+): Promise<{ chunks: number }> {
+  const r = await fetch(`${BASE}/ingest/flow`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url, nodes, edges, openai_key: openaiKey ?? null }),
+    signal: AbortSignal.timeout(300_000),
+  });
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({ detail: r.statusText }));
+    throw new Error(err.detail ?? `HTTP ${r.status}`);
+  }
+  return r.json();
+}

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { invoke } from '@tauri-apps/api/core';
 import Icon from '../components/common/Icon';
 import RagSetupModal from '../components/rag/RagSetupModal';
+import AutomationFlowBuilder from '../components/rag/AutomationFlowBuilder';
 import {
   ragChatStream, ragIngestUrl, ragIngestDebug, ragListSources, ragDeleteSource, ragGetChunks,
   type RagSource, type SourceInfo, type ChunkInfo, type IngestDebugResult,
@@ -621,6 +622,7 @@ export default function RagChatPage() {
 
   const [backendStarting, setBackendStarting] = useState(false);
   const [backendErr, setBackendErr] = useState<string | null>(null);
+  const [showFlowBuilder, setShowFlowBuilder] = useState(false);
 
   // Check backend + Ollama status
   const checkStatus = useCallback(async () => {
@@ -818,6 +820,7 @@ export default function RagChatPage() {
   ];
 
   return (
+    <>
     <div className="screen" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', animation: 'none' }}>
       {/* Setup modal */}
       {!setupDone && (
@@ -1293,19 +1296,34 @@ export default function RagChatPage() {
                     </div>
                   </div>
                 ) : (
-                  <button onClick={() => setAddingUrl(true)} style={{
-                    width: '100%', padding: '10px 0', borderRadius: 'var(--r-sm)',
-                    background: 'rgba(217,232,157,0.08)',
-                    border: '1.5px dashed rgba(217,232,157,0.3)',
-                    color: 'var(--accent)', fontSize: 13, fontWeight: 700,
-                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-                    transition: 'all 160ms var(--ease)',
-                  }}
-                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(217,232,157,0.16)'; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = 'rgba(217,232,157,0.08)'; }}
-                  >
-                    <Icon name="globe" size={15} /> Thêm URL
-                  </button>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                    <button onClick={() => setAddingUrl(true)} style={{
+                      width: '100%', padding: '10px 0', borderRadius: 'var(--r-sm)',
+                      background: 'rgba(217,232,157,0.08)',
+                      border: '1.5px dashed rgba(217,232,157,0.3)',
+                      color: 'var(--accent)', fontSize: 13, fontWeight: 700,
+                      cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                      transition: 'all 160ms var(--ease)',
+                    }}
+                      onMouseEnter={e => { e.currentTarget.style.background = 'rgba(217,232,157,0.16)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'rgba(217,232,157,0.08)'; }}
+                    >
+                      <Icon name="globe" size={15} /> Thêm URL
+                    </button>
+                    <button onClick={() => setShowFlowBuilder(true)} style={{
+                      width: '100%', padding: '10px 0', borderRadius: 'var(--r-sm)',
+                      background: 'rgba(78,205,196,0.07)',
+                      border: '1.5px dashed rgba(78,205,196,0.3)',
+                      color: '#4ECDC4', fontSize: 13, fontWeight: 700,
+                      cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                      transition: 'all 160ms var(--ease)',
+                    }}
+                      onMouseEnter={e => { e.currentTarget.style.background = 'rgba(78,205,196,0.15)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'rgba(78,205,196,0.07)'; }}
+                    >
+                      <span style={{ fontSize: 15 }}>⚡</span> Thêm auto workflow
+                    </button>
+                  </div>
                 )}
 
                 {/* URL list */}
@@ -1376,5 +1394,21 @@ export default function RagChatPage() {
         </div>
       </div>
     </div>
+
+    {showFlowBuilder && (
+      <AutomationFlowBuilder
+        openaiKey={openaiKey}
+        onClose={() => setShowFlowBuilder(false)}
+        onComplete={(flowUrl, chunks) => {
+          setUrls(prev => {
+            const exists = prev.find(u => u.url === flowUrl);
+            if (exists) return prev.map(u => u.url === flowUrl ? { ...u, status: 'ok', chunks } : u);
+            return [...prev, { url: flowUrl, title: flowUrl, chunks, status: 'ok' }];
+          });
+          setShowFlowBuilder(false);
+        }}
+      />
+    )}
+    </>
   );
 }

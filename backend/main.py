@@ -11,7 +11,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from agent import build_chain, get_retriever, get_vectorstore
-from ingest import ingest_url
+from ingest import ingest_url, ingest_url_with_flow
 
 OLLAMA_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 LLM_MODEL  = os.getenv("LLM_MODEL", "llama3:latest")
@@ -53,7 +53,10 @@ async def model_status():
     try:
         async with httpx.AsyncClient() as c:
             r = await c.get(f"{OLLAMA_URL}/api/tags", timeout=3.0)
-        installed = [m["name"] for m in r.json().get("models", [])]
+        installed = [
+            m["name"] for m in r.json().get("models", [])
+            if "embed" not in m["name"].lower() and "minilm" not in m["name"].lower()
+        ]
         # Ưu tiên LLM_MODEL, nếu không có thì dùng model đầu tiên trong danh sách
         if any(LLM_MODEL in m for m in installed):
             active_model = LLM_MODEL
@@ -299,6 +302,51 @@ async def ingest_debug(req: IngestRequest):
     try:
         result = await _run()
         return result
+    except Exception as e:
+        import traceback
+        raise HTTPException(status_code=500, detail=f"{type(e).__name__}: {e}\n\n{traceback.format_exc()}")
+
+
+class FlowNode(BaseModel):
+    id: str
+    data: dict
+
+
+class FlowEdge(BaseModel):
+    id: str
+    source: str
+    target: str
+
+
+class FlowIngestRequest(BaseModel):
+    url: str
+    nodes: list[FlowNode]
+    edges: list[FlowEdge]
+    cookies: str | None = None
+    openai_key: str | None = None
+
+
+@app.post("/ingest/flow")
+async def ingest_flow(req: FlowIngestRequest):
+    """
+    Chạy automation workflow và lưu nội dung vào ChromaDB.
+
+    Luồng thực thi:
+        Frontend gửi nodes + edges (React Flow graph)
+        → Backend build DAG
+        → Playwright mở browser, chạy từng node theo thứ tự edges
+        → Mỗi click/extract tích luỹ diff nội dung
+        → Chunk + embed + lưu ChromaDB
+    """
+    try:
+        chunks = await asyncio.to_thread(
+            ingest_url_with_flow,
+            req.url,
+            [n.model_dump() for n in req.nodes],
+            [e.model_dump() for e in req.edges],
+            req.cookies,
+        )
+        return {"status": "ok", "url": req.url, "chunks": chunks}
     except Exception as e:
         import traceback
         raise HTTPException(status_code=500, detail=f"{type(e).__name__}: {e}\n\n{traceback.format_exc()}")
