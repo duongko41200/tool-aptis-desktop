@@ -270,7 +270,7 @@ input, textarea { font-family: inherit; }
 ::-webkit-scrollbar-track { background: transparent; }
 
 /* ─── Animations ────────────────────────────────────────── */
-.screen { position: absolute; inset: 0; opacity: 1; animation: screen-in 520ms var(--ease) both; }
+.screen { position: absolute; inset: 0; opacity: 1; animation: screen-in 520ms var(--ease) both; will-change: transform; }
 @keyframes screen-in { from { transform: translateY(10px) scale(0.994); } to { transform: none; } }
 
 .rise { opacity: 1; animation: rise 600ms var(--ease) both; }

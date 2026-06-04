@@ -16,6 +16,7 @@ import WritingFeedbackPage   from './pages/WritingFeedbackPage';
 import ToolsPage             from './pages/ToolsPage';
 import VocabPage             from './pages/VocabPage';
 import ListeningPage         from './pages/ListeningPage';
+import RagChatPage           from './pages/RagChatPage';
 
 /* ── Rain particle effect ───────────────────────────── */
 function Rain() {
@@ -111,6 +112,7 @@ function AppShell() {
           <Route path="/writing/feedback"  element={<WritingFeedbackPage />} />
           <Route path="/vocab"             element={<VocabPage />} />
           <Route path="/listening"        element={<ListeningPage />} />
+          <Route path="/rag-chat"           element={<RagChatPage />} />
           <Route path="/tools"             element={<Navigate to="/tools/vocabulary" replace />} />
           <Route path="/tools/:tab"        element={<ToolsPage />} />
           <Route path="*"                  element={<Navigate to="/" replace />} />

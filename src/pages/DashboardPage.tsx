@@ -176,6 +176,7 @@ export default function DashboardPage() {
           <div className="label-cap" style={{ color: 'var(--on-dark-2)', margin: '4px 2px 12px' }}>Công cụ học tập</div>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
             {([
+              ['sparkle',    'RAG Chat AI',     '/rag-chat'],
               ['headphones', 'Shadowing Video', '/tools/shadowing'],
               ['mic',        'Teleprompter',    '/tools/teleprompter'],
               ['clipboard',  'Clipboard',       '/tools/clipboard'],

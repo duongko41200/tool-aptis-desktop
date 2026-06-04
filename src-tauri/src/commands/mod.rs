@@ -3,6 +3,7 @@ pub mod writing;
 pub mod vocabulary;
 pub mod clipboard;
 pub mod anki;
+pub mod ollama;
 
 use serde::{Deserialize, Serialize};
 use tauri::State;

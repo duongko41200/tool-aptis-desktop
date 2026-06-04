@@ -23,6 +23,7 @@ struct ClipboardChangedPayload {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_positioner::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_store::Builder::default().build())
@@ -159,6 +160,9 @@ pub fn run() {
             commands::anki::create_note_from_clipboard,
             commands::anki::save_deck_session,
             commands::anki::get_deck_session,
+            commands::ollama::download_ollama,
+            commands::ollama::start_ollama,
+            commands::ollama::check_ollama_running,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

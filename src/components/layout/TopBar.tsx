@@ -31,11 +31,15 @@ const NAV_ITEMS = [
   { icon: 'chat',       label: 'Nói',       path: '/speaking' },
   { icon: 'pencil',     label: 'Viết',      path: '/writing' },
   { icon: 'headphones', label: 'Nghe',      path: '/listening' },
+  { icon: 'sparkle',    label: 'Ai Chat',  path: '/rag-chat' },
 ];
 
 export default function TopBar() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
+
+  // Ẩn hoàn toàn trên các trang có header riêng
+  if (pathname.startsWith('/rag-chat')) return null;
 
   const isCurrent = (path: string) => {
     if (path === '/') return pathname === '/';
