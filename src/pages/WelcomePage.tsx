@@ -4,6 +4,9 @@ import TopBar from '../components/layout/TopBar';
 import Icon from '../components/common/Icon';
 import PomodoroWidget from '../components/shared/PomodoroWidget';
 import { useTweaks } from '../contexts/TweaksContext';
+import { saveSettings } from '../services/tauriCommands';
+
+const LS_GEMINI_KEY = 'gemini_api_key';
 
 function useCountdown(initial = 8285) {
   const [s, setS] = useState(initial);
@@ -71,6 +74,121 @@ function ProfilePopover({ onClose }: { onClose: () => void }) {
   );
 }
 
+function GeminiKeySection() {
+  const [expanded, setExpanded] = useState(false);
+  const [inputKey, setInputKey] = useState('');
+  const [showKey, setShowKey] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState('');
+  const [hasKey, setHasKey] = useState(() => !!localStorage.getItem(LS_GEMINI_KEY));
+
+  const maskedKey = () => {
+    const k = localStorage.getItem(LS_GEMINI_KEY) ?? '';
+    if (!k) return '';
+    return k.slice(0, 8) + '••••••••' + k.slice(-4);
+  };
+
+  const handleSave = async () => {
+    const key = inputKey.trim();
+    if (!key) { setError('Vui lòng nhập API key.'); return; }
+    if (!key.startsWith('AIza')) { setError('Key phải bắt đầu bằng "AIza..."'); return; }
+    setSaving(true); setError('');
+    try {
+      localStorage.setItem(LS_GEMINI_KEY, key);
+      try { await saveSettings({ gemini_api_key: key } as any); } catch { /* Tauri optional */ }
+      setHasKey(true);
+      setInputKey('');
+      setSaved(true);
+      setExpanded(false);
+      setTimeout(() => setSaved(false), 2500);
+    } finally { setSaving(false); }
+  };
+
+  const handleClear = () => {
+    localStorage.removeItem(LS_GEMINI_KEY);
+    try { saveSettings({ gemini_api_key: '' } as any); } catch { /* Tauri optional */ }
+    setHasKey(false);
+    setInputKey('');
+    setExpanded(false);
+  };
+
+  return (
+    <div style={{ borderRadius: 'var(--r-sm)', margin: '2px 6px', overflow: 'hidden', border: '1px solid var(--glass-edge)' }}>
+      {/* Row header — always visible */}
+      <button
+        onClick={() => { setExpanded(v => !v); setError(''); }}
+        style={{ width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 12, padding: '11px 12px', background: 'transparent', fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}
+        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(40,55,30,0.04)'; }}
+        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+      >
+        <Icon name="sparkle" size={17} style={{ color: 'var(--accent-deep)', flexShrink: 0 }} />
+        <span style={{ flex: 1 }}>Gemini API Key</span>
+        {saved
+          ? <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--good)', display: 'flex', alignItems: 'center', gap: 4 }}><Icon name="checkCircle" size={13} />Đã lưu</span>
+          : hasKey
+            ? <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 'var(--r-pill)', background: 'rgba(111,174,90,0.15)', color: 'var(--good)' }}>Đã cài</span>
+            : <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 'var(--r-pill)', background: 'rgba(224,169,59,0.15)', color: 'var(--warn)' }}>Chưa cài</span>
+        }
+        <Icon name={expanded ? 'chevD' : 'chevR'} size={14} style={{ color: 'var(--ink-3)', flexShrink: 0 }} />
+      </button>
+
+      {/* Expanded form */}
+      {expanded && (
+        <div style={{ padding: '4px 12px 14px', borderTop: '1px solid var(--glass-edge)', background: 'rgba(255,255,255,0.3)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {hasKey && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 'var(--r-sm)', background: 'rgba(111,174,90,0.08)', border: '1px solid rgba(111,174,90,0.18)' }}>
+              <Icon name="checkCircle" size={14} style={{ color: 'var(--good)', flexShrink: 0 }} />
+              <span style={{ fontSize: 12, color: 'var(--ink-2)', fontFamily: 'var(--font-mono)', flex: 1 }}>{maskedKey()}</span>
+              <button onClick={handleClear} style={{ fontSize: 11, color: 'var(--bad)', fontWeight: 700, background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px' }}>Xoá</button>
+            </div>
+          )}
+
+          <p style={{ margin: 0, fontSize: 11.5, color: 'var(--ink-3)', lineHeight: 1.5 }}>
+            Lấy key miễn phí tại{' '}
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>aistudio.google.com</span>
+            {' '}→ Get API Key
+          </p>
+
+          <div style={{ display: 'flex', gap: 7 }}>
+            <div style={{ flex: 1, position: 'relative' }}>
+              <input
+                type={showKey ? 'text' : 'password'}
+                value={inputKey}
+                onChange={e => { setInputKey(e.target.value); setError(''); }}
+                onKeyDown={e => e.key === 'Enter' && handleSave()}
+                placeholder={hasKey ? 'Nhập key mới để thay thế…' : 'AIzaSy…'}
+                style={{ width: '100%', padding: '8px 32px 8px 10px', borderRadius: 'var(--r-sm)', border: `1px solid ${error ? 'var(--bad)' : 'rgba(40,55,30,0.18)'}`, background: 'rgba(255,255,255,0.8)', fontSize: 12, fontFamily: 'var(--font-mono)', color: 'var(--ink)', outline: 'none', boxSizing: 'border-box' }}
+                onFocus={e => { e.currentTarget.style.borderColor = 'var(--accent-deep)'; }}
+                onBlur={e => { e.currentTarget.style.borderColor = error ? 'var(--bad)' : 'rgba(40,55,30,0.18)'; }}
+              />
+              <button
+                onClick={() => setShowKey(v => !v)}
+                style={{ position: 'absolute', right: 7, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink-3)', padding: 0, display: 'flex' }}
+              >
+                <Icon name="eye" size={14} />
+              </button>
+            </div>
+            <button
+              className="btn btn-primary btn-sm"
+              onClick={handleSave}
+              disabled={saving || inputKey.trim().length < 10}
+              style={{ flexShrink: 0, gap: 5, padding: '8px 14px' }}
+            >
+              {saving
+                ? <span style={{ width: 12, height: 12, borderRadius: '50%', border: '2px solid var(--accent-ink)', borderTopColor: 'transparent', animation: 'spin 0.7s linear infinite', display: 'inline-block' }} />
+                : <Icon name="check" size={13} />
+              }
+              Lưu
+            </button>
+          </div>
+          {error && <span style={{ fontSize: 11.5, color: 'var(--bad)' }}>{error}</span>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SettingsPopover({ onClose }: { onClose: () => void }) {
   const { openTweaks } = useTweaks();
   const [sound, setSound] = useState(true);
@@ -101,6 +219,8 @@ function SettingsPopover({ onClose }: { onClose: () => void }) {
         <Row ic="volume" label="Âm thanh nền"><Switch on={sound} set={setSound} /></Row>
         <Row ic="bell" label="Nhắc học hằng ngày"><Switch on={notif} set={setNotif} /></Row>
         <Row ic="globe" label="Ngôn ngữ"><span className="chip" style={{ fontSize: 12 }}>Tiếng Việt</span></Row>
+        <hr className="divider" style={{ margin: '4px 12px' }} />
+        <GeminiKeySection />
         <hr className="divider" style={{ margin: '4px 12px' }} />
         <button onClick={() => { openTweaks(); onClose(); }}
           style={{ width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 12, padding: '11px 12px', borderRadius: 'var(--r-sm)', fontSize: 14, fontWeight: 600, color: 'var(--ink)', transition: 'background 140ms', background: 'transparent' }}

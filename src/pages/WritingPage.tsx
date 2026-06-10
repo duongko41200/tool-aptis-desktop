@@ -1,123 +1,264 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import TopBar from '../components/layout/TopBar';
 import Icon from '../components/common/Icon';
-
-function Ring({ value = 68, size = 56, label }: { value?: number; size?: number; label?: string }) {
-  const r = (size - 10) / 2;
-  const c = 2 * Math.PI * r;
-  const off = c - (value / 100) * c;
-  return (
-    <div style={{ position: 'relative', width: size, height: size, display: 'grid', placeItems: 'center', flexShrink: 0 }}>
-      <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(40,55,30,0.13)" strokeWidth="7" />
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--accent-deep)" strokeWidth="7"
-          strokeLinecap="round" strokeDasharray={c} strokeDashoffset={off}
-          style={{ transition: 'stroke-dashoffset 600ms var(--ease)' }} />
-      </svg>
-      <div style={{ position: 'absolute', fontSize: size * 0.24, fontWeight: 800, color: 'var(--ink)', lineHeight: 1 }}>{label}</div>
-    </div>
-  );
-}
-
-const PROMPT = {
-  title: "My favourite place to relax",
-  desc: "Mô tả một nơi bạn thường đến để thư giãn. Vì sao nơi đó đặc biệt với bạn?",
-  reqs: [
-    { t: 'Tối thiểu 80 từ',              test: (n: number) => n >= 80 },
-    { t: 'Dùng ít nhất 2 tính từ miêu tả', test: (n: number) => n >= 30 },
-    { t: 'Có câu mở đầu & kết luận',      test: (n: number) => n >= 50 },
-  ],
-};
-
-const SAMPLE = `My favourite place to relax is a small café near my house. It is very cozy and quiet, with warm lights and soft lofi music playing all day. I usually go there in the afternoon to read a book or study English. The serene atmosphere helps me feel calm and focused.`;
+import WritingScorerPanel from '../components/writing/WritingScorerPanel';
+import WritingHistoryPanel from '../components/writing/WritingHistoryPanel';
+import writingData from '../public/data/exams/writing-part4.json';
 
 export default function WritingPage() {
-  const navigate = useNavigate();
-  const [text, setText] = useState('');
-  const words = text.trim() ? text.trim().split(/\s+/).length : 0;
-  const done = PROMPT.reqs.filter(r => r.test(words)).length;
+  const [selectedTopic, setSelectedTopic] = useState<any>(null);
+  const [activePart, setActivePart] = useState<'part1' | 'part2'>('part1');
+  
+  // States for the writing room
+  const [text1, setText1] = useState('');
+  const [text2, setText2] = useState('');
+  const [showHistory, setShowHistory] = useState(false);
+
+  // If no topic selected, show topic list
+  if (!selectedTopic) {
+    return (
+      <div className="screen">
+        <TopBar />
+        <div className="scroll" style={{ position: 'absolute', inset: 0, paddingTop: 92, overflowY: 'auto' }}>
+          <div style={{ width: 'min(1080px,95vw)', margin: '0 auto', paddingBottom: 60 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+              <div style={{ width: 48, height: 48, borderRadius: 'var(--r-xl)', background: 'var(--accent)', display: 'grid', placeItems: 'center', color: 'var(--accent-ink)' }}>
+                <Icon name="pencil" size={24} />
+              </div>
+              <div>
+                <h1 style={{ fontSize: 28, fontWeight: 800, color: 'var(--ink)', margin: 0, letterSpacing: '-0.02em' }}>Chọn đề bài Writing</h1>
+                <p style={{ margin: '4px 0 0', fontSize: 15, color: 'var(--ink-2)' }}>Luyện tập viết email theo form Aptis Part 4</p>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 16 }}>
+              {writingData.map((topic: any) => (
+                <div 
+                  key={topic._id}
+                  className="glass"
+                  onClick={() => setSelectedTopic(topic)}
+                  style={{ 
+                    padding: 24, 
+                    cursor: 'pointer', 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    gap: 16, 
+                    borderRadius: 'var(--r-xl)', 
+                    transition: 'all 0.2s var(--ease)',
+                    border: '1px solid var(--glass-edge)',
+                    boxShadow: 'var(--shadow-sm)'
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = 'var(--shadow-md)';
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.transform = 'none';
+                    e.currentTarget.style.boxShadow = 'var(--shadow-sm)';
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+                    <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: 'var(--ink)', lineHeight: 1.3 }}>
+                      {topic.title}
+                    </h3>
+                    <span className="chip" style={{ fontSize: 12, background: 'rgba(40,55,30,0.06)', color: 'var(--ink-2)', flexShrink: 0 }}>
+                      <Icon name="clock" size={12} /> {topic.timeToDo}p
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 14, color: 'var(--ink-2)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {topic.questions[0]?.subQuestion?.map((sq: any) => (
+                      <div key={sq._id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                        <span style={{ color: 'var(--accent-deep)', marginTop: 2 }}><Icon name="mail" size={14} /></span>
+                        <span style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{sq.content}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ marginTop: 'auto', paddingTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent-deep)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      Bắt đầu viết <Icon name="arrow-right" size={14} />
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Writing Room
+  const words1 = text1.trim() ? text1.trim().split(/\s+/).length : 0;
+  const words2 = text2.trim() ? text2.trim().split(/\s+/).length : 0;
+
+  const question = selectedTopic.questions[0];
+  const subQ1 = question?.subQuestion?.[0];
+  const subQ2 = question?.subQuestion?.[1];
 
   return (
     <div className="screen">
       <TopBar />
-      <div style={{ position: 'absolute', inset: 0, paddingTop: 92, display: 'grid', placeItems: 'center' }}>
-        <div style={{ width: 'min(1080px,95vw)', height: 'min(80vh,740px)', display: 'grid', gridTemplateColumns: '300px 1fr', gap: 16 }}>
+      <div style={{ position: 'absolute', inset: 0, paddingTop: 70, display: 'grid', placeItems: 'center' }}>
+        <div style={{ width: 'min(1280px,98vw)', height: 'min(86vh,800px)', display: 'grid', gridTemplateColumns: '400px 1fr', gap: 20 }}>
 
-          {/* Left: prompt + reqs */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minHeight: 0 }}>
-            <div className="glass" style={{ padding: 20 }}>
-              <div className="chip chip-accent" style={{ marginBottom: 12 }}>
-                <Icon name="calendar" size={14} /> Đề hôm nay
+          {/* Left: prompt */}
+          <div className="scroll" style={{ display: 'flex', flexDirection: 'column', gap: 16, overflowY: 'auto', paddingRight: 8, paddingBottom: 20 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }} onClick={() => setSelectedTopic(null)}>
+              <div className="chip" style={{ background: 'rgba(255,255,255,0.5)' }}>
+                <Icon name="arrow-left" size={16} /> Quay lại
               </div>
-              <h2 style={{ fontSize: 20, fontWeight: 800, color: 'var(--ink)', letterSpacing: '-0.02em', margin: '0 0 8px', lineHeight: 1.2 }}>
-                {PROMPT.title}
-              </h2>
-              <p style={{ fontSize: 13.5, color: 'var(--ink-2)', margin: 0, lineHeight: 1.55 }}>{PROMPT.desc}</p>
             </div>
 
-            <div className="glass" style={{ padding: 20, flex: 1 }}>
-              <div className="label-cap" style={{ marginBottom: 12 }}>Yêu cầu bài viết</div>
-              {PROMPT.reqs.map((r, i) => {
-                const ok = r.test(words);
-                return (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0' }}>
-                    <span style={{ width: 24, height: 24, borderRadius: '50%', display: 'grid', placeItems: 'center', flexShrink: 0, background: ok ? 'var(--accent)' : 'rgba(40,55,30,0.08)', color: ok ? 'var(--accent-ink)' : 'var(--ink-3)', transition: 'all 200ms var(--ease)' }}>
-                      <Icon name={ok ? 'check' : 'close'} size={14} />
-                    </span>
-                    <span style={{ fontSize: 13.5, fontWeight: 600, color: ok ? 'var(--ink)' : 'var(--ink-3)' }}>{r.t}</span>
-                  </div>
-                );
-              })}
-              <hr className="divider" style={{ margin: '12px 0' }} />
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <Ring value={(done / PROMPT.reqs.length) * 100} size={56} label={`${done}/${PROMPT.reqs.length}`} />
-                <span style={{ fontSize: 13, color: 'var(--ink-2)', fontWeight: 600 }}>Hoàn thành yêu cầu</span>
+            <div className="glass" style={{ padding: 24, borderRadius: 'var(--r-xl)' }}>
+              <div className="chip chip-accent" style={{ marginBottom: 16, alignSelf: 'flex-start' }}>
+                <Icon name="calendar" size={14} /> Đề bài
               </div>
+              <h2 style={{ fontSize: 22, fontWeight: 800, color: 'var(--ink)', letterSpacing: '-0.02em', margin: '0 0 16px', lineHeight: 1.2 }}>
+                {selectedTopic.title}
+              </h2>
+              {question?.content && (
+                <div 
+                  style={{ fontSize: 14.5, color: 'var(--ink-2)', lineHeight: 1.6 }}
+                  dangerouslySetInnerHTML={{ __html: question.content }}
+                />
+              )}
+            </div>
+
+            {/* Sub questions guidelines */}
+            <div className="glass" style={{ padding: 24, borderRadius: 'var(--r-xl)', flex: 1 }}>
+              <div className="label-cap" style={{ marginBottom: 16 }}>Nhiệm vụ</div>
+              
+              {subQ1 && (
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                    <span style={{ width: 24, height: 24, borderRadius: '50%', background: 'var(--accent)', color: 'var(--accent-ink)', display: 'grid', placeItems: 'center', fontSize: 13, fontWeight: 800 }}>1</span>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)' }}>Email thân mật (khoảng 50 từ)</span>
+                  </div>
+                  <p style={{ margin: 0, fontSize: 14, color: 'var(--ink-2)', paddingLeft: 32 }}>{subQ1.content}</p>
+                </div>
+              )}
+
+              {subQ2 && (
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                    <span style={{ width: 24, height: 24, borderRadius: '50%', background: 'var(--accent)', color: 'var(--accent-ink)', display: 'grid', placeItems: 'center', fontSize: 13, fontWeight: 800 }}>2</span>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)' }}>Email trang trọng (120-150 từ)</span>
+                  </div>
+                  <p style={{ margin: 0, fontSize: 14, color: 'var(--ink-2)', paddingLeft: 32 }}>{subQ2.content}</p>
+                </div>
+              )}
+              
             </div>
           </div>
 
-          {/* Right: editor */}
-          <div className="glass" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRadius: 'var(--r-xl)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 22px', borderBottom: '1px solid var(--glass-edge)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <Icon name="pencil" size={19} style={{ color: 'var(--accent-deep)' }} />
-                <span style={{ fontSize: 15.5, fontWeight: 800, color: 'var(--ink)' }}>Phòng viết</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <button onClick={() => setText(SAMPLE)} className="chip" style={{ fontSize: 12 }}>
-                  <Icon name="sparkle" size={13} /> Điền mẫu
-                </button>
-                <span className="chip" style={{ fontSize: 12, fontFamily: 'var(--font-mono)' }}>{words} từ</span>
-              </div>
-            </div>
+          {/* Right: editors tabbed */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, overflow: 'hidden' }}>
 
-            <textarea
-              value={text}
-              onChange={e => setText(e.target.value)}
-              placeholder="Bắt đầu viết ở đây... Cứ thoải mái, AI sẽ giúp bạn chỉnh sau."
-              className="scroll"
-              style={{ flex: 1, border: 'none', outline: 'none', resize: 'none', background: 'rgba(255,255,255,0.35)', padding: '22px 24px', fontSize: 16, lineHeight: 1.7, color: 'var(--ink)', fontFamily: 'var(--font)' }}
-            />
-
-            <div style={{ padding: 18, borderTop: '1px solid var(--glass-edge)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 12.5, color: 'var(--ink-3)' }}>Tự động lưu nháp · vừa xong</span>
-              <div style={{ display: 'flex', gap: 10 }}>
-                <button className="btn btn-soft btn-sm">Lưu nháp</button>
+            {/* Tabs + history button row */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+              <div className="glass" style={{ display: 'inline-flex', gap: 4, padding: 6, borderRadius: 'var(--r-pill)' }}>
                 <button
-                  onClick={() => navigate('/writing/feedback')}
-                  className="btn btn-primary btn-sm"
-                  disabled={words < 5}
-                  style={{ opacity: words < 5 ? 0.5 : 1 }}
+                  onClick={() => setActivePart('part1')}
+                  style={{ padding: '8px 20px', borderRadius: 'var(--r-pill)', fontSize: 14, fontWeight: 700, color: activePart === 'part1' ? 'var(--accent-ink)' : 'var(--ink-2)', background: activePart === 'part1' ? 'var(--accent)' : 'transparent', transition: 'all 160ms var(--ease)', border: 'none', cursor: 'pointer' }}
                 >
-                  <Icon name="sparkle" size={16} /> Nộp & chấm bài
+                  1. Thư thân mật
+                </button>
+                <button
+                  onClick={() => setActivePart('part2')}
+                  style={{ padding: '8px 20px', borderRadius: 'var(--r-pill)', fontSize: 14, fontWeight: 700, color: activePart === 'part2' ? 'var(--accent-ink)' : 'var(--ink-2)', background: activePart === 'part2' ? 'var(--accent)' : 'transparent', transition: 'all 160ms var(--ease)', border: 'none', cursor: 'pointer' }}
+                >
+                  2. Thư trang trọng
                 </button>
               </div>
+              <button
+                className="btn btn-soft btn-sm"
+                onClick={() => setShowHistory(true)}
+                style={{ gap: 7, marginLeft: 'auto' }}
+              >
+                <Icon name="bookmark" size={14} />
+                Lịch sử
+              </button>
             </div>
+
+            {/* Editor 1 */}
+            {activePart === 'part1' && (
+              <div className="glass scroll" style={{ display: 'flex', flexDirection: 'column', borderRadius: 'var(--r-xl)', flex: 1, overflowY: 'auto' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 22px', borderBottom: '1px solid var(--glass-edge)', background: 'rgba(255,255,255,0.4)', position: 'sticky', top: 0, zIndex: 1, borderRadius: 'var(--r-xl) var(--r-xl) 0 0' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(40,55,30,0.1)', color: 'var(--ink)', display: 'grid', placeItems: 'center', fontSize: 13, fontWeight: 800 }}>1</span>
+                    <span style={{ fontSize: 15.5, fontWeight: 800, color: 'var(--ink)' }}>Phòng viết: Thân mật</span>
+                  </div>
+                  <span className="chip" style={{ fontSize: 12, fontFamily: 'var(--font-mono)' }}>{words1} từ</span>
+                </div>
+                <textarea
+                  value={text1}
+                  onChange={e => setText1(e.target.value)}
+                  placeholder="Viết email cho bạn bè ở đây..."
+                  style={{ minHeight: 200, border: 'none', outline: 'none', resize: 'none', background: 'transparent', padding: '20px 24px', fontSize: 15, lineHeight: 1.6, color: 'var(--ink)', fontFamily: 'var(--font)' }}
+                />
+
+                {/* Scorer panel — replaces old "Chấm bài" button */}
+                <div style={{ padding: '0 24px 24px' }}>
+                  <WritingScorerPanel
+                    key={selectedTopic._id + '-1'}
+                    essay={text1}
+                    examId={selectedTopic._id}
+                    examTitle={selectedTopic.title}
+                    examContentHtml={question?.content ?? ''}
+                    subQuestionContent={subQ1?.content ?? ''}
+                    letterType="informal"
+                    wordCountTarget={50}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Editor 2 */}
+            {activePart === 'part2' && (
+              <div className="glass scroll" style={{ display: 'flex', flexDirection: 'column', borderRadius: 'var(--r-xl)', flex: 1, overflowY: 'auto' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 22px', borderBottom: '1px solid var(--glass-edge)', background: 'rgba(255,255,255,0.4)', position: 'sticky', top: 0, zIndex: 1, borderRadius: 'var(--r-xl) var(--r-xl) 0 0' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(40,55,30,0.1)', color: 'var(--ink)', display: 'grid', placeItems: 'center', fontSize: 13, fontWeight: 800 }}>2</span>
+                    <span style={{ fontSize: 15.5, fontWeight: 800, color: 'var(--ink)' }}>Phòng viết: Trang trọng</span>
+                  </div>
+                  <span className="chip" style={{ fontSize: 12, fontFamily: 'var(--font-mono)' }}>{words2} từ</span>
+                </div>
+                <textarea
+                  value={text2}
+                  onChange={e => setText2(e.target.value)}
+                  placeholder="Viết email cho người quản lý/tổ chức ở đây..."
+                  style={{ minHeight: 200, border: 'none', outline: 'none', resize: 'none', background: 'transparent', padding: '20px 24px', fontSize: 15, lineHeight: 1.6, color: 'var(--ink)', fontFamily: 'var(--font)' }}
+                />
+
+                {/* Scorer panel */}
+                <div style={{ padding: '0 24px 24px' }}>
+                  <WritingScorerPanel
+                    key={selectedTopic._id + '-2'}
+                    essay={text2}
+                    examId={selectedTopic._id}
+                    examTitle={selectedTopic.title}
+                    examContentHtml={question?.content ?? ''}
+                    subQuestionContent={subQ2?.content ?? ''}
+                    letterType="formal"
+                    wordCountTarget={150}
+                  />
+                </div>
+              </div>
+            )}
+
           </div>
 
         </div>
       </div>
+
+      {showHistory && (
+        <WritingHistoryPanel
+          examId={selectedTopic._id}
+          examTitle={selectedTopic.title}
+          onClose={() => setShowHistory(false)}
+        />
+      )}
     </div>
   );
 }
+

@@ -16,10 +16,17 @@ export default function SettingsScreen() {
   useEffect(() => {
     getSettings().then((s) => {
       if (s.gemini_api_key) setApiKey(s.gemini_api_key);
+      else {
+        const lsKey = localStorage.getItem('gemini_api_key');
+        if (lsKey) setApiKey(lsKey);
+      }
       setClipboardEnabled(s.clipboard_monitoring_enabled);
       setTtsVoice(s.tts_voice ?? '');
       setWritingMode(s.default_writing_mode ?? 'general');
-    }).catch(() => {});
+    }).catch(() => {
+      const lsKey = localStorage.getItem('gemini_api_key');
+      if (lsKey) setApiKey(lsKey);
+    });
 
     const loadVoices = () => setVoices(window.speechSynthesis.getVoices());
     loadVoices();
@@ -27,12 +34,18 @@ export default function SettingsScreen() {
   }, []);
 
   const handleSave = async () => {
-    await saveSettings({
-      gemini_api_key: apiKey,
-      clipboard_monitoring_enabled: clipboardEnabled,
-      tts_voice: ttsVoice,
-      default_writing_mode: writingMode,
-    });
+    try {
+      await saveSettings({
+        gemini_api_key: apiKey,
+        clipboard_monitoring_enabled: clipboardEnabled,
+        tts_voice: ttsVoice,
+        default_writing_mode: writingMode,
+      });
+    } catch {
+      // Tauri not available — settings saved to localStorage only
+    }
+    if (apiKey) localStorage.setItem('gemini_api_key', apiKey);
+    else localStorage.removeItem('gemini_api_key');
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };

@@ -185,3 +185,77 @@ pub async fn get_writing_submissions(
     .collect();
     Ok(submissions)
 }
+
+// ── Writing Score History (APTIS Part 4 scorer) ──────────────────────
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct WritingScoreHistoryEntry {
+    pub id: String,
+    pub exam_id: String,
+    pub exam_title: String,
+    pub letter_type: String,
+    pub essay: String,
+    pub result_json: String,
+    pub word_count: i64,
+    pub saved_at: String,
+}
+
+#[tauri::command]
+pub async fn save_writing_score(
+    id: String,
+    exam_id: String,
+    exam_title: String,
+    letter_type: String,
+    essay: String,
+    result_json: String,
+    word_count: i64,
+    saved_at: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    db.execute(
+        "INSERT OR REPLACE INTO writing_score_history (id, exam_id, exam_title, letter_type, essay, result_json, word_count, saved_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        params![id, exam_id, exam_title, letter_type, essay, result_json, word_count, saved_at],
+    ).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_writing_scores_by_exam(
+    exam_id: String,
+    state: State<'_, AppState>,
+) -> Result<Vec<WritingScoreHistoryEntry>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let mut stmt = db.prepare(
+        "SELECT id, exam_id, exam_title, letter_type, essay, result_json, word_count, saved_at
+         FROM writing_score_history WHERE exam_id = ?1 ORDER BY saved_at DESC LIMIT 100",
+    ).map_err(|e| e.to_string())?;
+
+    let entries = stmt.query_map(params![exam_id], |row| {
+        Ok(WritingScoreHistoryEntry {
+            id: row.get(0)?,
+            exam_id: row.get(1)?,
+            exam_title: row.get(2)?,
+            letter_type: row.get(3)?,
+            essay: row.get(4)?,
+            result_json: row.get(5)?,
+            word_count: row.get(6)?,
+            saved_at: row.get(7)?,
+        })
+    }).map_err(|e| e.to_string())?
+    .filter_map(|r| r.ok())
+    .collect();
+    Ok(entries)
+}
+
+#[tauri::command]
+pub async fn delete_writing_score(
+    id: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    db.execute("DELETE FROM writing_score_history WHERE id = ?1", params![id])
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}

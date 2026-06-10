@@ -11,5 +11,6 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
     conn.execute_batch(include_str!("../../migrations/001_initial_schema.sql"))?;
     conn.execute_batch(include_str!("../../migrations/002_anki_schema.sql"))?;
     conn.execute_batch(include_str!("../../migrations/003_session_ratings.sql"))?;
+    conn.execute_batch(include_str!("../../migrations/004_writing_score_history.sql"))?;
     Ok(())
 }
