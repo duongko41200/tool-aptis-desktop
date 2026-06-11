@@ -99,8 +99,8 @@ export default function WritingPage() {
     return (
       <div className="screen">
         {isCompact ? <FloatingNav align="right" /> : <TopBar />}
-        <div style={{ position: 'absolute', inset: 0, paddingTop: isCompact ? 20 : 70, display: 'grid', placeItems: 'center' }}>
-          <div style={{ width: 'min(1280px,98vw)', height: isCompact ? 'calc(100vh - 20px)' : 'min(86vh,800px)' }}>
+        <div style={{ position: 'absolute', inset: 0, paddingTop: isCompact ? 16 : 70, display: 'grid', placeItems: 'center' }}>
+          <div style={{ width: 'min(1280px,98vw)', height: isCompact ? 'calc(100vh - 30px)' : 'min(95vh,800px)' }}>
             <WritingHistoryPanel
               examId={selectedTopic._id}
               examTitle={selectedTopic.title}
