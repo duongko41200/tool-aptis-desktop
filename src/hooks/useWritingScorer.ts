@@ -33,6 +33,7 @@ interface ScoreParams {
   examId: string;
   examTitle: string;
   examContentHtml: string;
+  examSummary?: string;
   subQuestionContent: string;
   letterType: LetterType;
   wordCountTarget: number;
@@ -73,6 +74,7 @@ export function useWritingScorer(): UseWritingScorerReturn {
         examId: params.examId,
         examTitle: params.examTitle,
         examContent: htmlToText(params.examContentHtml),
+        examSummary: params.examSummary,
         subQuestionContent: params.subQuestionContent,
         letterType: params.letterType,
         wordCountTarget: params.wordCountTarget,

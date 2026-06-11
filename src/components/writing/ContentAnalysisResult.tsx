@@ -3,10 +3,10 @@ import type { ContentAnalysisResult as ContentResult } from '../../types/writing
 
 interface Props {
   result: ContentResult;
-  onAnalyzeCrossExam: () => void;
-  isCrossExamLoading: boolean;
-  crossExamDone: boolean;
-  showCrossExam: boolean;
+  onAnalyzeCrossExam?: () => void;
+  isCrossExamLoading?: boolean;
+  crossExamDone?: boolean;
+  showCrossExam?: boolean;
 }
 
 function CoverageBar({ value }: { value: number }) {
@@ -26,7 +26,7 @@ function CoverageBar({ value }: { value: number }) {
   );
 }
 
-export default function ContentAnalysisResult({ result, onAnalyzeCrossExam, isCrossExamLoading, crossExamDone, showCrossExam }: Props) {
+export default function ContentAnalysisResult({ result, onAnalyzeCrossExam, isCrossExamLoading = false, crossExamDone = false, showCrossExam = false }: Props) {
   const scoreColor = result.score >= 7 ? 'var(--good)' : result.score >= 5 ? 'var(--warn)' : 'var(--bad)';
   const relevant = result.solutions.filter(s => s.relevantToPrompt);
 

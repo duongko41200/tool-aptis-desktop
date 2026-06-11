@@ -87,6 +87,24 @@ export default function WritingPage() {
     );
   }
 
+  // History screen — same container as writing room
+  if (showHistory) {
+    return (
+      <div className="screen">
+        <TopBar />
+        <div style={{ position: 'absolute', inset: 0, paddingTop: 70, display: 'grid', placeItems: 'center' }}>
+          <div style={{ width: 'min(1280px,98vw)', height: 'min(86vh,800px)' }}>
+            <WritingHistoryPanel
+              examId={selectedTopic._id}
+              examTitle={selectedTopic.title}
+              onBack={() => setShowHistory(false)}
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Writing Room
   const words1 = text1.trim() ? text1.trim().split(/\s+/).length : 0;
   const words2 = text2.trim() ? text2.trim().split(/\s+/).length : 0;
@@ -205,6 +223,7 @@ export default function WritingPage() {
                     examId={selectedTopic._id}
                     examTitle={selectedTopic.title}
                     examContentHtml={question?.content ?? ''}
+                    examSummary={selectedTopic.summary}
                     subQuestionContent={subQ1?.content ?? ''}
                     letterType="informal"
                     wordCountTarget={50}
@@ -238,6 +257,7 @@ export default function WritingPage() {
                     examId={selectedTopic._id}
                     examTitle={selectedTopic.title}
                     examContentHtml={question?.content ?? ''}
+                    examSummary={selectedTopic.summary}
                     subQuestionContent={subQ2?.content ?? ''}
                     letterType="formal"
                     wordCountTarget={150}
@@ -251,13 +271,6 @@ export default function WritingPage() {
         </div>
       </div>
 
-      {showHistory && (
-        <WritingHistoryPanel
-          examId={selectedTopic._id}
-          examTitle={selectedTopic.title}
-          onClose={() => setShowHistory(false)}
-        />
-      )}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import type { ScoringResult } from './writing-scorer';
+import type { ScoringResult, CrossExamResult } from './writing-scorer';
 
 export interface WritingScoreEntry {
   id: string;
@@ -7,5 +7,6 @@ export interface WritingScoreEntry {
   letterType: 'formal' | 'informal';
   essay: string;
   result: ScoringResult;
+  crossExamResults?: CrossExamResult[] | null;
   savedAt: string; // ISO
 }

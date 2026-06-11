@@ -40,7 +40,8 @@
     "image": null,
     "createdAt": "2025-10-01T14:12:47.081Z",
     "updatedAt": "2025-10-01T14:23:50.432Z",
-    "__v": 0
+    "__v": 0,
+    "summary": "The Art Club is organizing a public talk and wants member suggestions for a suitable artist and engaging topic to attract both young and elderly audiences."
   },
   {
     "_id": "68dd37d853b4655eba3ee4ee",
@@ -83,7 +84,8 @@
     "image": null,
     "createdAt": "2025-10-01T14:16:56.480Z",
     "updatedAt": "2026-01-18T15:43:35.231Z",
-    "__v": 0
+    "__v": 0,
+    "summary": "The Book Club announces it can no longer offer one free book per month and warns of 4-6 week delivery delays; members are asked for feelings and recommendations."
   },
   {
     "_id": "68dd383e53b4655eba3ee4f7",
@@ -126,7 +128,8 @@
     "image": null,
     "createdAt": "2025-10-01T14:18:38.333Z",
     "updatedAt": "2026-01-13T14:26:43.073Z",
-    "__v": 0
+    "__v": 0,
+    "summary": "A member has been taking an effective English course at American Dream Center for 2 months; tasks are to recommend it to a friend and explain why the member cannot continue attending."
   },
   {
     "_id": "68dd391e53b4655eba3ee500",
@@ -169,7 +172,8 @@
     "image": null,
     "createdAt": "2025-10-01T14:22:22.433Z",
     "updatedAt": "2026-01-13T14:28:15.673Z",
-    "__v": 0
+    "__v": 0,
+    "summary": "The Language Club is planning a lecture and needs a volunteer guest speaker with a proposed language-learning topic for the talk."
   },
   {
     "_id": "68dd39c653b4655eba3ee5fc",
@@ -212,7 +216,8 @@
     "image": null,
     "createdAt": "2025-10-01T14:25:10.698Z",
     "updatedAt": "2026-01-13T14:29:30.246Z",
-    "__v": 0
+    "__v": 0,
+    "summary": "The government proposes demolishing old buildings to replace them with modern blocks; the Beautiful Homes Club asks members for opinions and suggestions."
   },
   {
     "_id": "68dd3a0453b4655eba3ee605",
@@ -255,7 +260,8 @@
     "image": null,
     "createdAt": "2025-10-01T14:26:12.291Z",
     "updatedAt": "2026-01-13T14:30:37.335Z",
-    "__v": 0
+    "__v": 0,
+    "summary": "The Photography Club is organizing a photo exhibition with a public talk and wants member suggestions on how to attract visitors of all ages."
   },
   {
     "_id": "68dd3ad253b4655eba3ee617",
@@ -298,7 +304,8 @@
     "image": null,
     "createdAt": "2025-10-01T14:29:38.435Z",
     "updatedAt": "2026-01-13T14:31:59.920Z",
-    "__v": 0
+    "__v": 0,
+    "summary": "The Music Club is planning a concert and asks members for suggestions to attract both young and elderly audiences to participate."
   },
   {
     "_id": "68dd3b3853b4655eba3ee620",
@@ -341,7 +348,8 @@
     "image": null,
     "createdAt": "2025-10-01T14:31:20.985Z",
     "updatedAt": "2026-01-13T14:32:56.523Z",
-    "__v": 0
+    "__v": 0,
+    "summary": "The Music Club holds evening concerts that disturb nearby residents; members are asked for suggestions to resolve the noise complaints."
   },
   {
     "_id": "68dd3bd953b4655eba3ee629",
@@ -384,7 +392,8 @@
     "image": null,
     "createdAt": "2025-10-01T14:34:01.599Z",
     "updatedAt": "2026-01-13T14:33:43.299Z",
-    "__v": 0
+    "__v": 0,
+    "summary": "The Sport Club asks members to suggest how to better organize sports activities and participation opportunities for young members."
   },
   {
     "_id": "68dd3caf53b4655eba3ee632",
@@ -427,7 +436,8 @@
     "image": null,
     "createdAt": "2025-10-01T14:37:35.085Z",
     "updatedAt": "2026-01-13T14:34:53.096Z",
-    "__v": 0
+    "__v": 0,
+    "summary": "The Social Club wants to start monthly face-to-face meetings and asks members for suggestions on the best time and venue to suit both young and older participants."
   },
   {
     "_id": "68dd3d5d53b4655eba3ee63b",
@@ -470,7 +480,8 @@
     "image": null,
     "createdAt": "2025-10-01T14:40:29.980Z",
     "updatedAt": "2026-01-13T15:02:50.214Z",
-    "__v": 0
+    "__v": 0,
+    "summary": "The Walking Club is planning a 2-week tour through European countries and asks members for opinions and suggestions on this trip plan."
   },
   {
     "_id": "68dd3df053b4655eba3ee644",
@@ -513,7 +524,8 @@
     "image": null,
     "createdAt": "2025-10-01T14:42:56.005Z",
     "updatedAt": "2026-01-18T15:55:12.452Z",
-    "__v": 0
+    "__v": 0,
+    "summary": "Members of the Walking Club have been using phones while walking creating safety risks; the club asks for opinions and suggestions to address this behaviour."
   },
   {
     "_id": "68dd3e4053b4655eba3ee64d",
@@ -556,7 +568,8 @@
     "image": null,
     "createdAt": "2025-10-01T14:44:16.395Z",
     "updatedAt": "2026-01-13T15:04:21.124Z",
-    "__v": 0
+    "__v": 0,
+    "summary": "The Computer Club plans to redesign its website to attract more members and asks for member feelings and improvement suggestions."
   },
   {
     "_id": "68dd3eb253b4655eba3ee656",
@@ -599,7 +612,8 @@
     "image": null,
     "createdAt": "2025-10-01T14:46:10.672Z",
     "updatedAt": "2026-01-13T15:06:05.393Z",
-    "__v": 0
+    "__v": 0,
+    "summary": "The Home Living Club asks members to suggest practical ways to help young families find suitable homes or apartments to buy."
   },
   {
     "_id": "68dd3f2f53b4655eba3ee65f",
@@ -642,7 +656,8 @@
     "image": null,
     "createdAt": "2025-10-01T14:48:15.875Z",
     "updatedAt": "2026-01-13T15:07:15.835Z",
-    "__v": 0
+    "__v": 0,
+    "summary": "The Debate Club wants to attract young people who see debating as irrelevant; members are asked to share the two most important benefits of debating and public speaking."
   },
   {
     "_id": "68ddb9f453b4655eba3ee8ba",
@@ -685,7 +700,8 @@
     "image": null,
     "createdAt": "2025-10-01T23:32:04.692Z",
     "updatedAt": "2026-01-13T15:08:09.704Z",
-    "__v": 0
+    "__v": 0,
+    "summary": "Some members have been posting negative comments on others on the Technology Club website; the club asks for opinions on how to resolve this situation."
   },
   {
     "_id": "68ddba6553b4655eba3ee8c3",
@@ -728,7 +744,8 @@
     "image": null,
     "createdAt": "2025-10-01T23:33:57.434Z",
     "updatedAt": "2026-01-18T15:49:14.529Z",
-    "__v": 0
+    "__v": 0,
+    "summary": "The Technology Club is planning an event and wants member recommendations for a special destination that can accommodate international attendees."
   },
   {
     "_id": "68ddbb1e53b4655eba3ee8cc",
@@ -771,7 +788,8 @@
     "image": null,
     "createdAt": "2025-10-01T23:37:02.407Z",
     "updatedAt": "2026-01-13T15:09:44.318Z",
-    "__v": 0
+    "__v": 0,
+    "summary": "The Technology Club is holding a technology fair and looking for volunteers; members are invited to apply and explain why they should be selected."
   },
   {
     "_id": "68ddbb6653b4655eba3ee8d5",
@@ -814,7 +832,8 @@
     "image": null,
     "createdAt": "2025-10-01T23:38:14.125Z",
     "updatedAt": "2026-01-13T15:10:36.380Z",
-    "__v": 0
+    "__v": 0,
+    "summary": "The Science Club is preparing a science exhibition for all ages and asks members for activity ideas, including whether to charge entrance tickets."
   },
   {
     "_id": "68ddbc1453b4655eba3ee8de",
@@ -857,7 +876,8 @@
     "image": null,
     "createdAt": "2025-10-01T23:41:08.241Z",
     "updatedAt": "2026-01-18T15:56:34.003Z",
-    "__v": 0
+    "__v": 0,
+    "summary": "The Museum Club is considering introducing an entry fee for members to visit the museum and asks for opinions on this proposal."
   },
   {
     "_id": "68ddbd4653b4655eba3eea13",
@@ -900,7 +920,8 @@
     "image": null,
     "createdAt": "2025-10-01T23:46:14.817Z",
     "updatedAt": "2026-01-13T15:12:13.312Z",
-    "__v": 0
+    "__v": 0,
+    "summary": "The Fitness Club needs to replace old equipment and is considering either a fundraising event or raising membership fees by 50%; members are asked for opinions."
   },
   {
     "_id": "68ddbdef53b4655eba3eea1c",
@@ -943,7 +964,8 @@
     "image": null,
     "createdAt": "2025-10-01T23:49:03.365Z",
     "updatedAt": "2026-01-13T15:12:45.456Z",
-    "__v": 0
+    "__v": 0,
+    "summary": "To cut costs the Fitness Club is considering closing its fitness shop and cafe; members are asked for opinions on which services should be kept or removed."
   },
   {
     "_id": "68df025053b4655eba3eeaa7",
@@ -986,7 +1008,8 @@
     "image": null,
     "createdAt": "2025-10-02T22:53:04.107Z",
     "updatedAt": "2026-01-13T15:13:19.786Z",
-    "__v": 0
+    "__v": 0,
+    "summary": "The Food Club aims to encourage young people to cook at home and asks members to suggest practical ways to motivate home cooking."
   },
   {
     "_id": "68df02ca53b4655eba3eeab0",
@@ -1029,7 +1052,8 @@
     "image": null,
     "createdAt": "2025-10-02T22:55:06.081Z",
     "updatedAt": "2026-01-18T15:57:18.769Z",
-    "__v": 0
+    "__v": 0,
+    "summary": "The Food Club is organizing a meeting with a famous chef and asks members to suggest a suitable cooking topic and type of meal for the chef to demonstrate."
   },
   {
     "_id": "68df03a253b4655eba3eec44",
@@ -1072,7 +1096,8 @@
     "image": null,
     "createdAt": "2025-10-02T22:58:42.946Z",
     "updatedAt": "2026-01-13T15:14:50.040Z",
-    "__v": 0
+    "__v": 0,
+    "summary": "The Travel Club is planning to promote tourism to a local area and asks members for suggestions to attract visitors and encourage polite tourist behaviour."
   },
   {
     "_id": "68df040e53b4655eba3eec4d",
@@ -1115,7 +1140,8 @@
     "image": null,
     "createdAt": "2025-10-02T23:00:30.202Z",
     "updatedAt": "2026-01-13T15:15:18.369Z",
-    "__v": 0
+    "__v": 0,
+    "summary": "The Travel Club asks members for tips to help first-time international travellers and suggestions for the most convenient ways to communicate while abroad."
   },
   {
     "_id": "68df067c53b4655eba3eec56",
@@ -1158,7 +1184,8 @@
     "image": null,
     "createdAt": "2025-10-02T23:10:52.666Z",
     "updatedAt": "2026-01-13T15:15:57.634Z",
-    "__v": 0
+    "__v": 0,
+    "summary": "The Television Club is organizing an event and wants member recommendations for a special venue or destination that can also welcome foreign attendees."
   },
   {
     "_id": "68df071c53b4655eba3eec5f",
@@ -1201,7 +1228,8 @@
     "image": null,
     "createdAt": "2025-10-02T23:13:32.272Z",
     "updatedAt": "2026-01-18T15:58:53.483Z",
-    "__v": 0
+    "__v": 0,
+    "summary": "The Television Club is planning a conference for international members who have only met online; suggestions are needed for the venue and in-person activities."
   },
   {
     "_id": "68df076e53b4655eba3eec68",
@@ -1244,7 +1272,8 @@
     "image": null,
     "createdAt": "2025-10-02T23:14:54.888Z",
     "updatedAt": "2026-01-13T15:16:36.827Z",
-    "__v": 0
+    "__v": 0,
+    "summary": "The English Club is debating whether new words and slang should be accepted into the language; members are asked to express their views and reasons."
   },
   {
     "_id": "68df07c453b4655eba3eec71",
@@ -1287,7 +1316,8 @@
     "image": null,
     "createdAt": "2025-10-02T23:16:20.605Z",
     "updatedAt": "2026-01-13T15:17:08.749Z",
-    "__v": 0
+    "__v": 0,
+    "summary": "The English Club is organizing an event to recruit new members and wants suggestions for the format and a theme that appeals to both young and older audiences."
   },
   {
     "_id": "68df091c53b4655eba3eed22",
@@ -1330,7 +1360,8 @@
     "image": null,
     "createdAt": "2025-10-02T23:22:04.775Z",
     "updatedAt": "2026-01-13T15:17:53.279Z",
-    "__v": 0
+    "__v": 0,
+    "summary": "The English Club Talk Show has been unexpectedly canceled due to a busy guest speaker; members are asked to share feelings and suggest alternative activities."
   },
   {
     "_id": "68df0a1f53b4655eba3eed2b",
@@ -1373,7 +1404,8 @@
     "image": null,
     "createdAt": "2025-10-02T23:26:23.205Z",
     "updatedAt": "2026-01-13T15:18:56.604Z",
-    "__v": 0
+    "__v": 0,
+    "summary": "The Social Club is planning an evening event and asks members to choose between an online meeting or a live event with games and quizzes, with reasons."
   },
   {
     "_id": "68f70a1a53b4655eba3f3e96",
@@ -1416,7 +1448,8 @@
     "image": null,
     "createdAt": "2025-10-21T04:20:42.139Z",
     "updatedAt": "2026-01-13T15:19:48.238Z",
-    "__v": 0
+    "__v": 0,
+    "summary": "The Garden Club announces its Japanese Gardens talk has been canceled due to speaker illness and replaced by a repeat English Gardens talk; members are asked for suggestions."
   },
   {
     "_id": "68f70a7553b4655eba3f3e9f",
@@ -1459,7 +1492,8 @@
     "image": null,
     "createdAt": "2025-10-21T04:22:13.035Z",
     "updatedAt": "2026-01-13T15:21:01.940Z",
-    "__v": 0
+    "__v": 0,
+    "summary": "The Outdoor Club is organizing a summer trip and asks members whether they prefer mountains or the coast, with suggestions suitable for all ages."
   },
   {
     "_id": "68f70b6553b4655eba3f3ea8",
@@ -1502,7 +1536,8 @@
     "image": null,
     "createdAt": "2025-10-21T04:26:13.738Z",
     "updatedAt": "2026-01-13T15:21:42.071Z",
-    "__v": 0
+    "__v": 0,
+    "summary": "A European car program invites the Car Club to send two skilled representatives; members are asked to express interest and explain why they should be selected."
   },
   {
     "_id": "68f70c6353b4655eba3f3eb1",
@@ -1545,7 +1580,8 @@
     "image": null,
     "createdAt": "2025-10-21T04:30:27.503Z",
     "updatedAt": "2026-01-13T15:22:18.524Z",
-    "__v": 0
+    "__v": 0,
+    "summary": "The Fashion Club is planning meetings with famous designers and deciding between an online format or a live fashion show; members are asked for their preferred format."
   },
   {
     "_id": "68f70d1d53b4655eba3f3eba",
@@ -1588,7 +1624,8 @@
     "image": null,
     "createdAt": "2025-10-21T04:33:33.553Z",
     "updatedAt": "2026-01-13T15:22:55.181Z",
-    "__v": 0
+    "__v": 0,
+    "summary": "The Community Club needs more active members and creative ideas for new activities; members are asked to share suggestions to support club projects."
   },
   {
     "_id": "68f70d7253b4655eba3f3ec3",
@@ -1631,7 +1668,8 @@
     "image": null,
     "createdAt": "2025-10-21T04:34:58.515Z",
     "updatedAt": "2026-01-13T15:23:49.647Z",
-    "__v": 0
+    "__v": 0,
+    "summary": "The Business Club plans to support local small business startups and is choosing between a call centre or free courses; members are asked for their preferred option."
   },
   {
     "_id": "68f70e0753b4655eba3f3ecc",
@@ -1674,7 +1712,8 @@
     "image": null,
     "createdAt": "2025-10-21T04:37:27.727Z",
     "updatedAt": "2026-03-23T14:56:36.099Z",
-    "__v": 0
+    "__v": 0,
+    "summary": "The Nature Club is running a campaign to get young children outdoors and engaged with nature; members are asked for activity ideas and the best ways to communicate these messages."
   },
   {
     "_id": "68f70e6653b4655eba3f3ed5",
@@ -1717,7 +1756,8 @@
     "image": null,
     "createdAt": "2025-10-21T04:39:02.703Z",
     "updatedAt": "2026-01-13T15:24:56.999Z",
-    "__v": 0
+    "__v": 0,
+    "summary": "Members have complained the Writing Club website is unprofessional and hard to use; the club asks members to send their improvement suggestions."
   },
   {
     "_id": "68f70fa553b4655eba3f3f13",
@@ -1760,7 +1800,8 @@
     "image": null,
     "createdAt": "2025-10-21T04:44:21.252Z",
     "updatedAt": "2026-01-15T13:39:57.449Z",
-    "__v": 0
+    "__v": 0,
+    "summary": "The Movie Club venue is being repaired; members are asked to suggest an alternative meeting place or activity for the club."
   },
   {
     "_id": "68f7100053b4655eba3f3f1c",
@@ -1803,7 +1844,8 @@
     "image": null,
     "createdAt": "2025-10-21T04:45:52.566Z",
     "updatedAt": "2026-01-18T16:01:54.655Z",
-    "__v": 0
+    "__v": 0,
+    "summary": "The College Club notifies members that end-of-course exams have been moved two weeks earlier than planned; members are asked to share feelings and suggestions."
   },
   {
     "_id": "68f7153553b4655eba3f3f37",
@@ -1846,7 +1888,8 @@
     "image": null,
     "createdAt": "2025-10-21T05:08:05.219Z",
     "updatedAt": "2026-01-15T13:45:37.084Z",
-    "__v": 0
+    "__v": 0,
+    "summary": "The Film Club announces that guest actor James McAvoy cannot attend the next meeting; members are asked to choose a rescheduled date and suggest alternative discussion topics."
   },
   {
     "_id": "68f74a4653b4655eba3f400e",
@@ -1889,7 +1932,8 @@
     "image": null,
     "createdAt": "2025-10-21T08:54:30.210Z",
     "updatedAt": "2026-01-18T16:01:29.024Z",
-    "__v": 0
+    "__v": 0,
+    "summary": "The Cinema Club is considering banning mobile phones after repeated complaints about phone use during screenings; members are asked for opinions and additional suggestions."
   },
   {
     "_id": "68f7158e53b4655eba3f3f40",
@@ -1932,7 +1976,8 @@
     "image": null,
     "createdAt": "2025-10-21T05:09:34.565Z",
     "updatedAt": "2026-01-15T13:49:37.114Z",
-    "__v": 0
+    "__v": 0,
+    "summary": "Film-maker Malcolm G cannot attend the Film Club screening; members are offered a limited chance to buy a signed DVD at a special price and are asked for their response."
   },
   {
     "_id": "68f74a9e53b4655eba3f4017",
@@ -1975,7 +2020,8 @@
     "image": null,
     "createdAt": "2025-10-21T08:55:58.153Z",
     "updatedAt": "2026-01-15T13:53:50.243Z",
-    "__v": 0
+    "__v": 0,
+    "summary": "The Design Club is creating a promotional poster and asks members to suggest ideas for colors, images, and design styles to attract new members."
   },
   {
     "_id": "68f74aeb53b4655eba3f4020",
@@ -2018,7 +2064,8 @@
     "image": null,
     "createdAt": "2025-10-21T08:57:15.169Z",
     "updatedAt": "2026-01-15T13:55:31.416Z",
-    "__v": 0
+    "__v": 0,
+    "summary": "All Cooking Club classes are canceled next week due to the instructor being on holiday; fees will not be refunded, and members are asked for feelings and suggestions."
   },
   {
     "_id": "68f74b2753b4655eba3f4029",
@@ -2061,7 +2108,8 @@
     "image": null,
     "createdAt": "2025-10-21T08:58:15.342Z",
     "updatedAt": "2026-01-15T13:57:33.506Z",
-    "__v": 0
+    "__v": 0,
+    "summary": "The Healthy Club instructor will be absent for two weeks; members must use the facilities independently and are asked to share feelings and suggestions for this period."
   },
   {
     "_id": "9b78bea483ee8c5c5a24fc3d",
@@ -2104,6 +2152,7 @@
     "image": null,
     "createdAt": "2026-06-01T03:43:12.257Z",
     "updatedAt": "2026-06-01T03:43:12.257Z",
-    "__v": 0
+    "__v": 0,
+    "summary": "The Reading Book Club is organizing a talk with a famous author but due to limited budget will charge a $25 entrance fee; members are asked for feelings and recommendations."
   }
 ]

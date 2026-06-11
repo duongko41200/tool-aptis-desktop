@@ -3,6 +3,9 @@ import Icon from '../common/Icon';
 import { useWritingScorer, hasStoredApiKey } from '../../hooks/useWritingScorer';
 import FormatCheckResult from './FormatCheckResult';
 import ContentAnalysisResult from './ContentAnalysisResult';
+import GrammarCheckResult from './GrammarCheckResult';
+import B2CriteriaResult from './B2CriteriaResult';
+import GrammarHighlight from './GrammarHighlight';
 import CrossExamResultPanel from './CrossExamResultPanel';
 import type { LetterType, ExamSummary } from '../../types/writing-scorer';
 import writingData from '../../public/data/exams/writing-part4.json';
@@ -15,6 +18,7 @@ interface Props {
   examId: string;
   examTitle: string;
   examContentHtml: string;
+  examSummary?: string;
   subQuestionContent: string;
   letterType: LetterType;
   wordCountTarget: number;
@@ -25,6 +29,7 @@ function buildExamSummaries(): ExamSummary[] {
     examId: exam._id,
     examTitle: exam.title,
     context: htmlToText(exam.questions?.[0]?.content ?? '').slice(0, 200),
+    summary: exam.summary ?? undefined,
   }));
 }
 
@@ -153,6 +158,7 @@ export default function WritingScorerPanel({
   examId,
   examTitle,
   examContentHtml,
+  examSummary,
   subQuestionContent,
   letterType,
   wordCountTarget,
@@ -162,6 +168,8 @@ export default function WritingScorerPanel({
 
   const [apiKeyReady, setApiKeyReady] = useState(hasStoredApiKey);
   const [historySaved, setHistorySaved] = useState(false);
+  const [activeTab, setActiveTab] = useState<'scoring' | 'cross-exam'>('scoring');
+  const [activeErrorId, setActiveErrorId] = useState<string | null>(null);
 
   const isLoading = status === 'scoring';
   const isCrossLoading = status === 'analyzing_cross';
@@ -173,8 +181,10 @@ export default function WritingScorerPanel({
 
   const handleScore = useCallback(() => {
     setHistorySaved(false);
-    score({ essay, examId, examTitle, examContentHtml, subQuestionContent, letterType, wordCountTarget });
-  }, [essay, examId, examTitle, examContentHtml, subQuestionContent, letterType, wordCountTarget, score]);
+    setActiveTab('scoring');
+    setActiveErrorId(null);
+    score({ essay, examId, examTitle, examContentHtml, examSummary, subQuestionContent, letterType, wordCountTarget });
+  }, [essay, examId, examTitle, examContentHtml, examSummary, subQuestionContent, letterType, wordCountTarget, score]);
 
   const handleCrossExam = useCallback(() => {
     runCrossExamAnalysis(buildExamSummaries(), examId);
@@ -187,10 +197,10 @@ export default function WritingScorerPanel({
 
   const handleSaveHistory = useCallback(async () => {
     if (!result) return;
-    await saveEntry({ essay, examId, examTitle, letterType, result });
+    await saveEntry({ essay, examId, examTitle, letterType, result, crossExamResults });
     setHistorySaved(true);
     setTimeout(() => setHistorySaved(false), 2500);
-  }, [result, essay, examId, examTitle, letterType]);
+  }, [result, crossExamResults, essay, examId, examTitle, letterType]);
 
   /* ── Idle ─────────────────────────────────────────────── */
   if (status === 'idle') {
@@ -273,30 +283,44 @@ export default function WritingScorerPanel({
       {/* Results */}
       {result && (
         <>
-          <div className="glass-2" style={{ padding: 18, borderRadius: 'var(--r-md)' }}>
-            <FormatCheckResult result={result.formatCheck} />
-          </div>
-
-          <div className="glass-2" style={{ padding: 18, borderRadius: 'var(--r-md)' }}>
-            <ContentAnalysisResult
-              result={result.contentAnalysis}
-              onAnalyzeCrossExam={handleCrossExam}
-              isCrossExamLoading={isCrossLoading}
-              crossExamDone={crossExamResults !== null}
-              showCrossExam={letterType === 'formal'}
-            />
-          </div>
-
-          {isCrossLoading && <LoadingDots label="Đang so sánh với các đề khác..." />}
-
-          {crossExamResults !== null && !isCrossLoading && (
-            <div className="glass-2" style={{ padding: 18, borderRadius: 'var(--r-md)' }}>
-              <CrossExamResultPanel results={crossExamResults} />
+          {/* Tab bar */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+            <div style={{ display: 'inline-flex', gap: 3, padding: 4, background: 'rgba(255,255,255,0.55)', borderRadius: 'var(--r-pill)' }}>
+              {([
+                ['scoring',    'Chấm điểm',     'sparkle'],
+                ['cross-exam', 'Phân tích đa đề','globe'],
+              ] as const).map(([tab, label, icon]) => {
+                const isActive = activeTab === tab;
+                const hasBadge = tab === 'cross-exam' && crossExamResults !== null && !isCrossLoading;
+                return (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      padding: '6px 14px', borderRadius: 'var(--r-pill)',
+                      fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer',
+                      transition: 'all 160ms var(--ease)',
+                      background: isActive ? 'var(--accent)' : 'transparent',
+                      color: isActive ? 'var(--accent-ink)' : 'var(--ink-2)',
+                      boxShadow: isActive ? 'var(--sh-glow)' : 'none',
+                    }}
+                  >
+                    <Icon name={icon} size={12} />
+                    {label}
+                    {hasBadge && (
+                      <span style={{
+                        width: 6, height: 6, borderRadius: '50%',
+                        background: isActive ? 'var(--accent-ink)' : 'var(--good)',
+                        flexShrink: 0,
+                      }} />
+                    )}
+                  </button>
+                );
+              })}
             </div>
-          )}
 
-          {/* Save to history */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 4 }}>
+            {/* Save button */}
             <button
               className="btn btn-soft btn-sm"
               onClick={handleSaveHistory}
@@ -311,11 +335,102 @@ export default function WritingScorerPanel({
               ) : (
                 <>
                   <Icon name="bookmark" size={14} />
-                  Lưu vào lịch sử
+                  Lưu lịch sử
                 </>
               )}
             </button>
           </div>
+
+          {/* ── Tab: Chấm điểm ──────────────────────────── */}
+          {activeTab === 'scoring' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+              {/* Grammar highlight essay */}
+              {result.grammarCheck?.errors?.length > 0 && (
+                <div className="glass-2" style={{ padding: 18, borderRadius: 'var(--r-md)' }}>
+                  <p style={{ margin: '0 0 10px', fontSize: 11, fontWeight: 800, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+                    Bài làm — lỗi được đánh dấu
+                  </p>
+                  <GrammarHighlight
+                    essay={essay}
+                    errors={result.grammarCheck.errors}
+                    activeErrorId={activeErrorId}
+                    onErrorClick={setActiveErrorId}
+                  />
+                </div>
+              )}
+
+              <div className="glass-2" style={{ padding: 18, borderRadius: 'var(--r-md)' }}>
+                <FormatCheckResult result={result.formatCheck} />
+              </div>
+
+              {result.grammarCheck && (
+                <div className="glass-2" style={{ padding: 18, borderRadius: 'var(--r-md)' }}>
+                  <GrammarCheckResult
+                    result={result.grammarCheck}
+                    activeErrorId={activeErrorId}
+                    onErrorClick={setActiveErrorId}
+                  />
+                </div>
+              )}
+
+              {result.b2Criteria && (
+                <div className="glass-2" style={{ padding: 18, borderRadius: 'var(--r-md)' }}>
+                  <B2CriteriaResult result={result.b2Criteria} />
+                </div>
+              )}
+
+              <div className="glass-2" style={{ padding: 18, borderRadius: 'var(--r-md)' }}>
+                <ContentAnalysisResult result={result.contentAnalysis} />
+              </div>
+            </div>
+          )}
+
+          {/* ── Tab: Phân tích đa đề ─────────────────────── */}
+          {activeTab === 'cross-exam' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {letterType !== 'formal' ? (
+                <div style={{ padding: '16px', borderRadius: 'var(--r-sm)', textAlign: 'center', background: 'rgba(106,166,196,0.08)', border: '1px solid rgba(106,166,196,0.18)' }}>
+                  <span style={{ fontSize: 13, color: 'var(--info)' }}>Phân tích đa đề chỉ áp dụng cho thư trang trọng.</span>
+                </div>
+              ) : (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <button
+                      onClick={handleCrossExam}
+                      disabled={isCrossLoading}
+                      className="btn btn-soft btn-sm"
+                      style={{ gap: 8 }}
+                    >
+                      {isCrossLoading ? (
+                        <>
+                          <span style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid var(--ink-3)', borderTopColor: 'var(--accent-deep)', animation: 'spin 0.7s linear infinite', display: 'inline-block', flexShrink: 0 }} />
+                          Đang phân tích...
+                        </>
+                      ) : (
+                        <>
+                          <Icon name="globe" size={14} />
+                          {crossExamResults !== null ? 'Phân tích lại' : 'Phân tích đa đề'}
+                        </>
+                      )}
+                    </button>
+                    <span style={{ fontSize: 11, color: 'var(--ink-3)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <Icon name="sparkle" size={11} />
+                      Tốn thêm 1 lượt Gemini API
+                    </span>
+                  </div>
+
+                  {isCrossLoading && <LoadingDots label="Đang so sánh với các đề khác..." />}
+
+                  {crossExamResults !== null && !isCrossLoading && (
+                    <div className="glass-2" style={{ padding: 18, borderRadius: 'var(--r-md)' }}>
+                      <CrossExamResultPanel results={crossExamResults} />
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
         </>
       )}
     </div>
