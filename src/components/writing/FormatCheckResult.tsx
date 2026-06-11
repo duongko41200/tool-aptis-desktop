@@ -94,7 +94,10 @@ export default function FormatCheckResult({ result }: Props) {
                   )}
                 </div>
                 {comp.note && (
-                  <p style={{ margin: '2px 0 0', fontSize: 12, color: comp.found ? 'var(--ink-3)' : 'var(--bad)', lineHeight: 1.4 }}>
+                  <p style={{
+                    margin: '2px 0 0', fontSize: 12, lineHeight: 1.4,
+                    color: comp.found ? 'var(--warn)' : 'var(--bad)',
+                  }}>
                     {comp.note}
                   </p>
                 )}

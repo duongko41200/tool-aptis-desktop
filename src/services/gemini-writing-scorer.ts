@@ -45,6 +45,8 @@ async function generateWithFallback(genAI: GoogleGenerativeAI, prompt: string): 
 
 function handleGeminiError(err: unknown): string {
   const msg = (err as any)?.message ?? String(err);
+
+  console.log('Gemini error:', msg);
   if (msg.includes('429') || msg.toLowerCase().includes('quota')) {
     return 'Gemini rate limit. Vui lòng thử lại sau 1 phút.';
   }
@@ -58,14 +60,18 @@ function handleGeminiError(err: unknown): string {
 }
 
 function parseJson<T>(text: string): T {
-  const cleaned = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
+  const cleaned = text
+    .replace(/```(json|javascript|typescript|js|text)?\s*\n?/gi, '')
+    .replace(/```\s*$/g, '')
+    .trim();
   try {
     return JSON.parse(cleaned) as T;
   } catch (e: any) {
-    if (e?.message?.includes('Unterminated') || e?.message?.includes('position')) {
+    const msg: string = e?.message ?? '';
+    if (msg.includes('Unterminated') || msg.includes('position') || msg.includes('Unexpected end')) {
       throw new Error('Phản hồi Gemini bị cắt ngắn. Vui lòng thử lại.');
     }
-    throw new Error(`JSON không hợp lệ: ${e?.message}`);
+    throw new Error(`JSON không hợp lệ: ${msg}`);
   }
 }
 
