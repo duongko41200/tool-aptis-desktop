@@ -169,6 +169,7 @@ pub fn run() {
             commands::backend::start_rag_backend,
             commands::backend::check_backend_running,
             commands::backend::get_backend_diagnostics,
+            commands::pdf::export_pdf_headless,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

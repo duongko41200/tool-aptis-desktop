@@ -5,6 +5,7 @@ pub mod clipboard;
 pub mod anki;
 pub mod ollama;
 pub mod backend;
+pub mod pdf;
 
 use serde::{Deserialize, Serialize};
 use tauri::State;

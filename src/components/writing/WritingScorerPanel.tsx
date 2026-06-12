@@ -12,6 +12,8 @@ import writingData from '../../public/data/exams/writing-part4.json';
 import { htmlToText } from '../../utils/html-to-text';
 import { saveSettings } from '../../services/tauriCommands';
 import { saveEntry } from '../../services/writing-history-store';
+import WritingPdfPreviewModal from './WritingPdfPreviewModal';
+import type { PdfExportParams } from '../../services/writing-pdf-export';
 
 interface Props {
   essay: string;
@@ -168,6 +170,7 @@ export default function WritingScorerPanel({
 
   const [apiKeyReady, setApiKeyReady] = useState(hasStoredApiKey);
   const [historySaved, setHistorySaved] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'scoring' | 'cross-exam'>('scoring');
   const [activeErrorId, setActiveErrorId] = useState<string | null>(null);
 
@@ -201,6 +204,10 @@ export default function WritingScorerPanel({
     setHistorySaved(true);
     setTimeout(() => setHistorySaved(false), 2500);
   }, [result, crossExamResults, essay, examId, examTitle, letterType]);
+
+  const pdfParams: PdfExportParams | null = result
+    ? { essay, examId, examTitle, letterType, result, crossExamResults }
+    : null;
 
   /* ── Idle ─────────────────────────────────────────────── */
   if (status === 'idle') {
@@ -320,30 +327,100 @@ export default function WritingScorerPanel({
               })}
             </div>
 
-            {/* Save button */}
-            <button
-              className="btn btn-soft btn-sm"
-              onClick={handleSaveHistory}
-              disabled={historySaved || isLoading || isCrossLoading}
-              style={{ gap: 7, transition: 'all 200ms var(--ease)' }}
-            >
-              {historySaved ? (
-                <>
-                  <Icon name="checkCircle" size={14} style={{ color: 'var(--good)' }} />
-                  <span style={{ color: 'var(--good)' }}>Đã lưu</span>
-                </>
-              ) : (
-                <>
-                  <Icon name="bookmark" size={14} />
-                  Lưu lịch sử
-                </>
-              )}
-            </button>
+            {/* Action buttons */}
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button
+                className="btn btn-soft btn-sm"
+                onClick={handleSaveHistory}
+                disabled={historySaved || isLoading || isCrossLoading}
+                style={{ gap: 7, transition: 'all 200ms var(--ease)' }}
+              >
+                {historySaved ? (
+                  <>
+                    <Icon name="checkCircle" size={14} style={{ color: 'var(--good)' }} />
+                    <span style={{ color: 'var(--good)' }}>Đã lưu</span>
+                  </>
+                ) : (
+                  <>
+                    <Icon name="bookmark" size={14} />
+                    Lưu
+                  </>
+                )}
+              </button>
+              <button
+                className="btn btn-soft btn-sm"
+                onClick={() => setPreviewOpen(true)}
+                disabled={isLoading || isCrossLoading}
+                style={{ gap: 7 }}
+                title="Xem trước & Xuất PDF"
+              >
+                <Icon name="eye" size={14} />
+                Xuất PDF
+              </button>
+            </div>
           </div>
 
           {/* ── Tab: Chấm điểm ──────────────────────────── */}
           {activeTab === 'scoring' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+              {/* Score summary card */}
+              {result && (() => {
+                const cefrLevel = result.b2Criteria?.cefrLevel;
+                const CEFR_COLORS: Record<string, string> = { A2: '#c0392b', B1: '#e67e22', B2: '#27ae60', C1: '#2980b9' };
+                const CEFR_LABEL: Record<string, string> = { A2: 'Cơ bản', B1: 'Trung cấp', B2: 'Trên trung cấp', C1: 'Nâng cao' };
+                const cefrColor = cefrLevel ? (CEFR_COLORS[cefrLevel] ?? 'var(--accent-deep)') : 'var(--accent-deep)';
+                const subScores = [
+                  { label: 'Định dạng', score: result.formatCheck?.score ?? 0, max: 5 },
+                  { label: 'Nội dung',  score: result.contentAnalysis?.score ?? 0, max: 10 },
+                  { label: 'Ngữ pháp', score: result.grammarCheck?.score ?? 0, max: 5 },
+                  { label: 'Ngôn ngữ', score: result.b2Criteria?.score ?? 0, max: 10 },
+                ];
+                const subColor = (s: number, m: number) => {
+                  const p = s / m;
+                  return p >= 0.7 ? 'var(--good)' : p >= 0.5 ? 'var(--warn)' : 'var(--bad)';
+                };
+                return (
+                  <div style={{
+                    padding: '14px 18px', borderRadius: 'var(--r-md)',
+                    background: 'rgba(255,255,255,0.7)', border: `1px solid ${cefrColor}44`,
+                    display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap',
+                    boxShadow: `0 0 0 2px ${cefrColor}12`,
+                  }}>
+                    {/* CEFR level badge */}
+                    {cefrLevel ? (
+                      <div style={{
+                        width: 64, height: 64, borderRadius: 'var(--r-md)', flexShrink: 0,
+                        background: `${cefrColor}18`, border: `2px solid ${cefrColor}55`,
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
+                      }}>
+                        <span style={{ fontSize: 22, fontWeight: 900, color: cefrColor, lineHeight: 1, fontFamily: 'var(--font-mono)' }}>{cefrLevel}</span>
+                        <span style={{ fontSize: 9, fontWeight: 700, color: cefrColor, opacity: 0.8, textAlign: 'center', lineHeight: 1.2, maxWidth: 52 }}>
+                          {CEFR_LABEL[cefrLevel]}
+                        </span>
+                      </div>
+                    ) : (
+                      <div style={{ width: 64, height: 64, borderRadius: 'var(--r-md)', background: '#e8ede0', flexShrink: 0 }} />
+                    )}
+
+                    {/* Sub-scores */}
+                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' as const }}>
+                      {subScores.map(({ label, score, max }) => (
+                        <div key={label} style={{
+                          padding: '6px 12px', borderRadius: 'var(--r-sm)',
+                          background: '#f5f9ea', border: '1px solid #e4eada',
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+                        }}>
+                          <span style={{ fontSize: 10, color: 'var(--ink-3)', fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.05em' }}>{label}</span>
+                          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 15, fontWeight: 800, color: subColor(score, max), lineHeight: 1 }}>
+                            {score}<span style={{ fontSize: 10, color: 'var(--ink-3)', fontWeight: 400 }}>/{max}</span>
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Grammar highlight essay */}
               {result.grammarCheck?.errors?.length > 0 && (
@@ -376,7 +453,7 @@ export default function WritingScorerPanel({
 
               {result.b2Criteria && (
                 <div className="glass-2" style={{ padding: 18, borderRadius: 'var(--r-md)' }}>
-                  <B2CriteriaResult result={result.b2Criteria} />
+                  <B2CriteriaResult result={result.b2Criteria} targetLevel="B2" />
                 </div>
               )}
 
@@ -432,6 +509,10 @@ export default function WritingScorerPanel({
             </div>
           )}
         </>
+      )}
+
+      {previewOpen && pdfParams && (
+        <WritingPdfPreviewModal params={pdfParams} onClose={() => setPreviewOpen(false)} />
       )}
     </div>
   );

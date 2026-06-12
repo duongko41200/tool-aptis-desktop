@@ -7,6 +7,7 @@ import GrammarHighlight from './GrammarHighlight';
 import B2CriteriaResult from './B2CriteriaResult';
 import CrossExamResultPanel from './CrossExamResultPanel';
 import { getByExam, deleteEntry } from '../../services/writing-history-store';
+import WritingPdfPreviewModal from './WritingPdfPreviewModal';
 import type { WritingScoreEntry } from '../../types/writing-history';
 
 interface Props {
@@ -21,36 +22,12 @@ function formatDate(iso: string) {
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
 }
-function totalScore(e: WritingScoreEntry) {
-  return e.result.formatCheck.score + e.result.contentAnalysis.score;
-}
 function scoreColor(pct: number) {
   return pct >= 0.7 ? 'var(--good)' : pct >= 0.5 ? 'var(--warn)' : 'var(--bad)';
 }
+const CEFR_COLORS: Record<string, string> = { A2: '#c0392b', B1: '#e67e22', B2: '#27ae60', C1: '#2980b9' };
+const CEFR_LABEL: Record<string, string> = { A2: 'Cơ bản', B1: 'Trung cấp', B2: 'Trên trung cấp', C1: 'Nâng cao' };
 
-// ── Score Ring ───────────────────────────────────────────────────────────────
-function ScoreRing({ score, max, size = 48 }: { score: number; max: number; size?: number }) {
-  const pct = score / max;
-  const color = scoreColor(pct);
-  const r = (size - 7) / 2;
-  const circ = 2 * Math.PI * r;
-  return (
-    <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
-      <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#e8ede0" strokeWidth={5.5} />
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={5.5}
-          strokeLinecap="round"
-          strokeDasharray={`${circ * pct} ${circ}`}
-          style={{ transition: 'stroke-dasharray 500ms var(--ease)' }}
-        />
-      </svg>
-      <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-        <span style={{ fontFamily: 'var(--font-mono)', fontSize: size * 0.26, fontWeight: 700, color, lineHeight: 1 }}>{score}</span>
-        <span style={{ fontFamily: 'var(--font-mono)', fontSize: size * 0.18, color: '#9aa38c', lineHeight: 1 }}>/{max}</span>
-      </div>
-    </div>
-  );
-}
 
 function Chip({ label, color, bg }: { label: string; color: string; bg: string }) {
   return (
@@ -69,7 +46,6 @@ function AttemptRow({ entry, index, total, active, onClick }: {
   const [hovered, setHovered] = useState(false);
   const isForml = entry.letterType === 'formal';
   const wordCount = entry.essay.trim().split(/\s+/).length;
-  const tot = totalScore(entry);
 
   return (
     <button onClick={onClick}
@@ -122,11 +98,24 @@ function AttemptRow({ entry, index, total, active, onClick }: {
         </div>
 
         <div style={{
-          display: 'flex', flexDirection: 'column', alignItems: 'center',
+          display: 'flex', alignItems: 'center',
           justifyContent: 'center', padding: '10px 12px', flexShrink: 0,
           borderLeft: '1px solid #e4eada',
         }}>
-          <ScoreRing score={tot} max={15} size={42} />
+          {(() => {
+            const cefr = entry.result.b2Criteria?.cefrLevel;
+            if (!cefr) return <span style={{ fontSize: 11, color: '#9aa38c', fontFamily: 'var(--font-mono)' }}>—</span>;
+            const color = CEFR_COLORS[cefr];
+            return (
+              <div style={{
+                width: 44, height: 44, borderRadius: 'var(--r-sm)',
+                background: `${color}18`, border: `2px solid ${color}55`,
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1,
+              }} title={CEFR_LABEL[cefr]}>
+                <span style={{ fontSize: 13, fontWeight: 900, color, lineHeight: 1, fontFamily: 'var(--font-mono)' }}>{cefr}</span>
+              </div>
+            );
+          })()}
         </div>
       </div>
     </button>
@@ -140,9 +129,9 @@ function DetailPanel({ entry, attemptNum, onDelete }: {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [activeTab, setActiveTab] = useState<'scoring' | 'cross-exam'>('scoring');
   const [activeErrorId, setActiveErrorId] = useState<string | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const isForml = entry.letterType === 'formal';
   const wordCount = entry.essay.trim().split(/\s+/).length;
-  const tot = totalScore(entry);
   const hasCrossExam = !!(entry.crossExamResults && entry.crossExamResults.length > 0);
   const hasGrammar = !!(entry.result.grammarCheck);
   const hasB2 = !!(entry.result.b2Criteria);
@@ -157,7 +146,23 @@ function DetailPanel({ entry, attemptNum, onDelete }: {
         borderBottom: '1px solid #e4eada',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <ScoreRing score={tot} max={15} size={56} />
+          {/* CEFR badge */}
+          {(() => {
+            const cefr = entry.result.b2Criteria?.cefrLevel;
+            if (!cefr) return null;
+            const color = CEFR_COLORS[cefr];
+            return (
+              <div style={{
+                width: 64, height: 64, borderRadius: 'var(--r-md)', flexShrink: 0,
+                background: `${color}18`, border: `2px solid ${color}55`,
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
+              }}>
+                <span style={{ fontSize: 20, fontWeight: 900, color, lineHeight: 1, fontFamily: 'var(--font-mono)' }}>{cefr}</span>
+                <span style={{ fontSize: 9, fontWeight: 700, color, opacity: 0.8, textAlign: 'center' as const }}>{CEFR_LABEL[cefr]}</span>
+              </div>
+            );
+          })()}
+
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' as const, marginBottom: 6 }}>
               <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--ink)' }}>Lần #{attemptNum}</span>
@@ -175,7 +180,7 @@ function DetailPanel({ entry, attemptNum, onDelete }: {
                 { label: 'Format', score: entry.result.formatCheck.score, max: 5 },
                 { label: 'Nội dung', score: entry.result.contentAnalysis.score, max: 10 },
                 ...(hasGrammar ? [{ label: 'Ngữ pháp', score: entry.result.grammarCheck!.score, max: 5 }] : []),
-                ...(hasB2 ? [{ label: 'B2', score: entry.result.b2Criteria!.score, max: 10 }] : []),
+                ...(hasB2 ? [{ label: 'Ngôn ngữ', score: entry.result.b2Criteria!.score, max: 10 }] : []),
               ].map(({ label, score, max }) => (
                 <div key={label}>
                   <div style={{ fontSize: 10, fontWeight: 700, color: '#9aa38c', textTransform: 'uppercase' as const, letterSpacing: '0.05em' }}>{label}</div>
@@ -232,6 +237,23 @@ function DetailPanel({ entry, attemptNum, onDelete }: {
         ))}
 
         <div style={{ flex: 1 }} />
+
+        {/* Export PDF */}
+        <button
+          onClick={() => setPreviewOpen(true)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px',
+            borderRadius: 'var(--r-pill)', background: 'transparent',
+            color: '#3a6a10', border: '1px solid #b0d080', fontSize: 11, fontWeight: 700,
+            cursor: 'pointer', transition: 'background 160ms var(--ease)', marginRight: 6,
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = '#eef5d6'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+          title="Xem trước & Xuất PDF"
+        >
+          <Icon name="eye" size={12} />
+          Xuất PDF
+        </button>
 
         {confirmDelete ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -315,6 +337,21 @@ function DetailPanel({ entry, attemptNum, onDelete }: {
         )}
 
       </div>
+
+      {previewOpen && (
+        <WritingPdfPreviewModal
+          params={{
+            essay: entry.essay,
+            examId: entry.examId,
+            examTitle: entry.examTitle,
+            letterType: entry.letterType,
+            savedAt: entry.savedAt,
+            result: entry.result,
+            crossExamResults: entry.crossExamResults,
+          }}
+          onClose={() => setPreviewOpen(false)}
+        />
+      )}
     </div>
   );
 }
@@ -355,9 +392,12 @@ export default function WritingHistoryPanel({ examId, examTitle, onBack }: Props
   };
 
   const filtered = entries.filter(e => filter === 'all' ? true : e.letterType === filter);
-  const avgScore = entries.length > 0
-    ? Math.round(entries.reduce((s, e) => s + totalScore(e), 0) / entries.length * 10) / 10
-    : null;
+  const cefrCounts = entries.reduce<Record<string, number>>((acc, e) => {
+    const cefr = e.result.b2Criteria?.cefrLevel;
+    if (cefr) acc[cefr] = (acc[cefr] ?? 0) + 1;
+    return acc;
+  }, {});
+  const topCefr = Object.entries(cefrCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
   const attemptNum = selected ? entries.length - entries.findIndex(e => e.id === selected.id) : 0;
 
   return (
@@ -417,7 +457,7 @@ export default function WritingHistoryPanel({ examId, examTitle, onBack }: Props
           <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
             {[
               { value: entries.length, label: 'lần làm', color: '#6a8c2a' },
-              ...(avgScore !== null ? [{ value: `${avgScore}/15`, label: 'điểm TB', color: scoreColor(avgScore / 15) }] : []),
+              ...(topCefr ? [{ value: topCefr, label: 'phổ biến nhất', color: CEFR_COLORS[topCefr] ?? '#6a8c2a' }] : []),
               { value: entries.filter(e => e.result.formatCheck.passed).length, label: 'đúng fmt', color: 'var(--good)' },
             ].map(({ value, label, color }) => (
               <div key={label} style={{ padding: '4px 12px', borderRadius: 'var(--r-pill)', background: '#ffffff', border: '1px solid #d8e6b8', textAlign: 'center' }}>

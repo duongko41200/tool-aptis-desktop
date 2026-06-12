@@ -97,16 +97,22 @@ ESSAY:
 ${req.essay}
 
 JSON schema to fill:
-{"formatCheck":{"passed":bool,"score":0-5,"letterType":"${req.letterType}","components":{"greeting":{"found":bool,"text":"","note":""},"openingLine":{"found":bool,"text":"","note":""},"body":{"found":bool,"paragraphCount":0,"note":""},"suggestions":{"found":bool,"count":0,"note":""},"closing":{"found":bool,"text":"","note":""},"signature":{"found":bool,"text":"","note":""}},"wordCount":0,"feedback":""},"contentAnalysis":{"solutions":[{"id":"s1","idea":"","originalText":"","relevantToPrompt":bool,"relevanceNote":""}],"promptCoverage":0,"score":0-10,"feedback":""},"grammarCheck":{"errors":[{"id":"g1","originalText":"exact quote from essay","correction":"corrected version","type":"grammar|spelling|vocabulary|punctuation","note":""}],"score":0-5,"feedback":""},"b2Criteria":{"vocabulary":{"score":0-3,"note":""},"cohesion":{"score":0-3,"note":""},"register":{"score":0-2,"note":""},"sentenceVariety":{"score":0-2,"note":""},"score":0-10,"feedback":""}}
+{"formatCheck":{"passed":bool,"score":0-5,"letterType":"${req.letterType}","components":{"greeting":{"found":bool,"text":"","note":""},"openingLine":{"found":bool,"text":"","note":""},"body":{"found":bool,"paragraphCount":0,"note":""},"suggestions":{"found":bool,"count":0,"note":""},"closing":{"found":bool,"text":"","note":""},"signature":{"found":bool,"text":"","note":""}},"wordCount":0,"feedback":""},"contentAnalysis":{"solutions":[{"id":"s1","idea":"","originalText":"","relevantToPrompt":bool,"relevanceNote":""}],"promptCoverage":0,"score":0-10,"feedback":""},"grammarCheck":{"errors":[{"id":"g1","originalText":"exact quote from essay","correction":"corrected version","type":"grammar|spelling|vocabulary|punctuation","note":""}],"score":0-5,"feedback":""},"b2Criteria":{"vocabulary":{"score":0-3,"note":""},"cohesion":{"score":0-3,"note":""},"register":{"score":0-2,"note":""},"sentenceVariety":{"score":0-2,"note":""},"score":0-10,"cefrLevel":"A2|B1|B2|C1","cefrNote":"(Vietnamese, 1 sentence explaining why this level)","feedback":""}}
 
 Rules:
-- All "note" and "feedback" must be in Vietnamese
+- All "note", "cefrNote", and "feedback" must be in Vietnamese
 - INFORMAL: suggestions.found=true, suggestions.count=0 (not required for score)
 - FORMAL: suggestions required, count>=1 affects score positively
 - passed=false if greeting OR closing missing
 - solutions: only real proposals/ideas, skip filler sentences
 - grammarCheck.errors: list ALL grammar/spelling/vocabulary mistakes; originalText must be exact substring from essay
-- b2Criteria: vocabulary=range/variety 0-3, cohesion=connectors/discourse 0-3, register=tone appropriateness 0-2, sentenceVariety=structural mix 0-2`;
+- b2Criteria: vocabulary=range/variety 0-3, cohesion=connectors/discourse 0-3, register=tone appropriateness 0-2, sentenceVariety=structural mix 0-2
+- cefrLevel: holistic assessment of the essay's English proficiency level:
+  A2=very basic sentences, very limited vocab, many errors
+  B1=can express ideas on familiar topics, basic connectors, some errors
+  B2=clear detailed writing, good range of vocab/structures, occasional errors
+  C1=sophisticated flexible writing, wide vocab, complex structures, rare errors
+- cefrNote: 1 sentence in Vietnamese explaining why you assigned that level`;
 }
 
 function buildCrossExamPrompt(solutions: Solution[], allExams: ExamSummary[]): string {

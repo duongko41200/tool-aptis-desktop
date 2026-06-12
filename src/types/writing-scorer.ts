@@ -67,12 +67,16 @@ export interface B2Criterion {
   note: string;
 }
 
+export type CefrLevel = 'A2' | 'B1' | 'B2' | 'C1';
+
 export interface B2CriteriaCheck {
   vocabulary: B2Criterion;    // 0–3
   cohesion: B2Criterion;      // 0–3
   register: B2Criterion;      // 0–2
   sentenceVariety: B2Criterion; // 0–2
   score: number;              // 0–10
+  cefrLevel: CefrLevel;       // assessed CEFR level of the essay
+  cefrNote: string;           // brief Vietnamese note explaining the level
   feedback: string;
 }
 
