@@ -101,6 +101,7 @@ export interface ExamApplicability {
   examTitle: string;
   applicability: CrossExamApplicability;
   modificationNote: string;
+  supplementSentences?: string[];
 }
 
 export interface CrossExamResult {

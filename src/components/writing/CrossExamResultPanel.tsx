@@ -183,6 +183,20 @@ export default function CrossExamResultPanel({ results }: Props) {
                           {exam.modificationNote}
                         </p>
                       )}
+                      {exam.supplementSentences && exam.supplementSentences.length > 0 && (
+                        <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          {exam.supplementSentences.map((s, idx) => (
+                            <div key={idx} style={{
+                              display: 'flex', alignItems: 'flex-start', gap: 7,
+                              background: 'rgba(106,166,196,0.08)', border: '1px solid rgba(106,166,196,0.22)',
+                              borderRadius: 'var(--r-sm)', padding: '6px 10px',
+                            }}>
+                              <Icon name="sparkle" size={11} style={{ color: 'var(--info)', flexShrink: 0, marginTop: 2 }} />
+                              <span style={{ fontSize: 12, color: 'var(--ink)', fontStyle: 'italic', lineHeight: 1.5 }}>{s}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </button>
 

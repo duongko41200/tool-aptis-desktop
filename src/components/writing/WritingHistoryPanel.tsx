@@ -6,6 +6,7 @@ import GrammarCheckResult from './GrammarCheckResult';
 import GrammarHighlight from './GrammarHighlight';
 import B2CriteriaResult from './B2CriteriaResult';
 import CrossExamResultPanel from './CrossExamResultPanel';
+import CrossExamDiagram from './CrossExamDiagram';
 import { getByExam, deleteEntry } from '../../services/writing-history-store';
 import WritingPdfPreviewModal from './WritingPdfPreviewModal';
 import type { WritingScoreEntry } from '../../types/writing-history';
@@ -128,6 +129,7 @@ function DetailPanel({ entry, attemptNum, onDelete }: {
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [activeTab, setActiveTab] = useState<'scoring' | 'cross-exam'>('scoring');
+  const [crossExamView, setCrossExamView] = useState<'diagram' | 'list'>('diagram');
   const [activeErrorId, setActiveErrorId] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const isForml = entry.letterType === 'formal';
@@ -329,9 +331,39 @@ function DetailPanel({ entry, attemptNum, onDelete }: {
         )}
 
         {activeTab === 'cross-exam' && hasCrossExam && (
-          <section>
+          <section style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {/* View toggle */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <div style={{ display: 'inline-flex', gap: 2, padding: 3, background: 'rgba(255,255,255,0.6)', borderRadius: 'var(--r-pill)', border: '1px solid var(--glass-edge)' }}>
+                {([
+                  ['diagram', 'Sơ đồ',    'globe'],
+                  ['list',    'Danh sách', 'list'],
+                ] as const).map(([view, label, icon]) => {
+                  const isActive = crossExamView === view;
+                  return (
+                    <button
+                      key={view}
+                      onClick={() => setCrossExamView(view)}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 5,
+                        padding: '5px 12px', borderRadius: 'var(--r-pill)',
+                        fontSize: 11, fontWeight: 700, border: 'none', cursor: 'pointer',
+                        transition: 'all 150ms var(--ease)',
+                        background: isActive ? 'var(--accent)' : 'transparent',
+                        color: isActive ? 'var(--accent-ink)' : 'var(--ink-3)',
+                        boxShadow: isActive ? 'var(--sh-glow)' : 'none',
+                      }}
+                    >
+                      <Icon name={icon} size={11} />
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
             <div style={{ borderRadius: 'var(--r-md)', background: '#ffffff', border: '1px solid #e4eada', padding: 16 }}>
-              <CrossExamResultPanel results={entry.crossExamResults!} />
+              {crossExamView === 'diagram' && <CrossExamDiagram results={entry.crossExamResults!} />}
+              {crossExamView === 'list'    && <CrossExamResultPanel results={entry.crossExamResults!} />}
             </div>
           </section>
         )}
@@ -375,6 +407,7 @@ export default function WritingHistoryPanel({ examId, examTitle, onBack }: Props
   const [entries, setEntries] = useState<WritingScoreEntry[]>([]);
   const [filter, setFilter] = useState<'all' | 'formal' | 'informal'>('all');
   const [selected, setSelected] = useState<WritingScoreEntry | null>(null);
+  const [listCollapsed, setListCollapsed] = useState(false);
 
   useEffect(() => {
     getByExam(examId).then(data => {
@@ -470,13 +503,18 @@ export default function WritingHistoryPanel({ examId, examTitle, onBack }: Props
       </div>
 
       {/* Master-detail body */}
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
 
         {/* Left: list */}
         <div style={{
-          width: 300, flexShrink: 0, display: 'flex', flexDirection: 'column',
-          borderRight: '1px solid #d8e6b8',
+          width: listCollapsed ? 0 : 300,
+          flexShrink: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          borderRight: listCollapsed ? 'none' : '1px solid #d8e6b8',
           background: '#f0f6e0',
+          overflow: 'hidden',
+          transition: 'width 220ms cubic-bezier(0.4,0,0.2,1)',
         }}>
           {/* Filter */}
           <div style={{ padding: '10px 12px 8px', borderBottom: '1px solid #d8e6b8', flexShrink: 0 }}>
@@ -527,6 +565,42 @@ export default function WritingHistoryPanel({ examId, examTitle, onBack }: Props
               <span style={{ fontSize: 10, color: '#9aa38c' }}>Lưu trữ trên máy</span>
             </div>
           )}
+        </div>
+
+        {/* Toggle button on the divider */}
+        <div style={{
+          position: 'absolute',
+          left: listCollapsed ? 0 : 300,
+          top: '50%',
+          transform: 'translate(-50%, -50%)',
+          zIndex: 10,
+          transition: 'left 220ms cubic-bezier(0.4,0,0.2,1)',
+        }}>
+          <button
+            onClick={() => setListCollapsed(v => !v)}
+            title={listCollapsed ? 'Mở danh sách' : 'Ẩn danh sách'}
+            style={{
+              width: 24, height: 48,
+              borderRadius: 'var(--r-pill)',
+              border: '2px solid var(--accent-deep)',
+              background: 'var(--accent)',
+              cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 2px 12px rgba(120,170,40,0.35), 0 0 0 3px rgba(120,170,40,0.12)',
+              transition: 'transform 150ms, box-shadow 150ms',
+              color: 'var(--accent-ink)',
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.transform = 'scale(1.12)';
+              e.currentTarget.style.boxShadow = '0 4px 18px rgba(120,170,40,0.5), 0 0 0 5px rgba(120,170,40,0.18)';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.transform = 'scale(1)';
+              e.currentTarget.style.boxShadow = '0 2px 12px rgba(120,170,40,0.35), 0 0 0 3px rgba(120,170,40,0.12)';
+            }}
+          >
+            <Icon name={listCollapsed ? 'chevR' : 'chevL'} size={13} />
+          </button>
         </div>
 
         {/* Right: detail */}

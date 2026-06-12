@@ -7,8 +7,9 @@ import type {
   CrossExamResult,
 } from '../types/writing-scorer';
 
-const MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash'];
-const RETRY_DELAY_MS = 4000;
+const MODELS = ['gemini-2.5-flash'];
+const MAX_RETRIES = 2;
+const BASE_DELAY_MS = 5000;
 // Max exams sent in cross-exam prompt — keeps token count predictable
 const MAX_CROSS_EXAM_EXAMS = 12;
 
@@ -23,22 +24,30 @@ function makeModel(genAI: GoogleGenerativeAI, modelName: string) {
   });
 }
 
+function isRetryable(err: any): boolean {
+  const status = err?.status ?? 0;
+  const msg: string = err?.message ?? '';
+  return status === 429 || status === 503 || status >= 500 || msg.toLowerCase().includes('high demand') || msg.toLowerCase().includes('unavailable');
+}
+
 async function generateWithFallback(genAI: GoogleGenerativeAI, prompt: string): Promise<string> {
   let lastErr: unknown;
   for (const modelName of MODELS) {
-    try {
-      const model = makeModel(genAI, modelName);
-      const result = await model.generateContent(prompt);
-      return result.response.text();
-    } catch (err: any) {
-      lastErr = err;
-      const status = err?.status ?? 0;
-      if (status === 429 || status >= 500) {
-        await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
-        continue;
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      try {
+        const model = makeModel(genAI, modelName);
+        const result = await model.generateContent(prompt);
+        return result.response.text();
+      } catch (err: any) {
+        lastErr = err;
+        if (!isRetryable(err)) throw err;
+        // exponential backoff: 5s, 10s, 20s — with ±1s jitter
+        const jitter = (Math.random() * 2 - 1) * 1000;
+        const delay = BASE_DELAY_MS * Math.pow(2, attempt) + jitter;
+        await new Promise((r) => setTimeout(r, delay));
       }
-      throw err;
     }
+    // all retries for this model exhausted — try next model immediately
   }
   throw lastErr;
 }
@@ -104,7 +113,8 @@ Rules:
 - INFORMAL: suggestions.found=true, suggestions.count=0 (not required for score)
 - FORMAL: suggestions required, count>=1 affects score positively
 - passed=false if greeting OR closing missing
-- solutions: only real proposals/ideas, skip filler sentences
+- solutions: extract ONLY sentences where the writer DIRECTLY answers the specific requirement in "TASK:" (e.g. if TASK says "suggest 2 ways to improve X", only include actual suggested improvements for X — NOT background info, reasons, or general opinions)
+- relevantToPrompt=true ONLY if the idea is a direct, actionable answer to the task requirement; set false for: causes of problems, general statements about the topic, filler, or anything not directly requested
 - grammarCheck.errors: list ALL grammar/spelling/vocabulary mistakes; originalText must be exact substring from essay
 - b2Criteria: vocabulary=range/variety 0-3, cohesion=connectors/discourse 0-3, register=tone appropriateness 0-2, sentenceVariety=structural mix 0-2
 - cefrLevel: holistic assessment of the essay's English proficiency level:
@@ -132,12 +142,14 @@ SOLUTIONS: ${solData}
 OTHER EXAMS: ${examData}
 
 For each solution, find which other exams it applies to.
-JSON schema: [{"solutionId":"","solutionIdea":"(Vietnamese)","applicableExams":[{"examId":"","examTitle":"","applicability":"direct|with_modification","modificationNote":"(Vietnamese, max 12 words)"}]}]
+JSON schema: [{"solutionId":"","solutionIdea":"(Vietnamese)","applicableExams":[{"examId":"","examTitle":"","applicability":"direct|with_modification","modificationNote":"(Vietnamese, max 12 words)","supp":["English sentence"]}]}]
 
 Rules:
 - Skip exams where idea does not apply at all
-- "direct": use as-is | "with_modification": same idea, minor topic adjustment
-- modificationNote in Vietnamese, under 12 words`;
+- "direct": idea fits exam as-is — set supp to []
+- "with_modification": same idea needs minor topic adjustment — provide 1-2 English sentences the user can add to their letter to make the idea fit that exam's context
+- modificationNote in Vietnamese, under 12 words
+- supp sentences must be natural, exam-specific, ready to paste into a formal letter`;
 }
 
 export async function scoreEssay(req: ScoringRequest, apiKey: string): Promise<ScoringResult> {
@@ -175,9 +187,15 @@ export async function analyzeCrossExam(
     return arr.map((item: any) => ({
       solutionId: item.solutionId ?? '',
       solutionIdea: item.solutionIdea ?? '',
-      applicableExams: (item.applicableExams ?? []).filter(
-        (e: any) => e.applicability === 'direct' || e.applicability === 'with_modification',
-      ),
+      applicableExams: (item.applicableExams ?? [])
+        .filter((e: any) => e.applicability === 'direct' || e.applicability === 'with_modification')
+        .map((e: any) => ({
+          examId: e.examId ?? '',
+          examTitle: e.examTitle ?? '',
+          applicability: e.applicability,
+          modificationNote: e.modificationNote ?? '',
+          supplementSentences: Array.isArray(e.supp) ? e.supp.filter(Boolean) : [],
+        })),
     }));
   } catch (err) {
     throw new Error(handleGeminiError(err));

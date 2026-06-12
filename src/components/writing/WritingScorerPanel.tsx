@@ -6,6 +6,7 @@ import ContentAnalysisResult from './ContentAnalysisResult';
 import GrammarCheckResult from './GrammarCheckResult';
 import B2CriteriaResult from './B2CriteriaResult';
 import GrammarHighlight from './GrammarHighlight';
+import CrossExamDiagram from './CrossExamDiagram';
 import CrossExamResultPanel from './CrossExamResultPanel';
 import type { LetterType, ExamSummary } from '../../types/writing-scorer';
 import writingData from '../../public/data/exams/writing-part4.json';
@@ -173,6 +174,7 @@ export default function WritingScorerPanel({
   const [previewOpen, setPreviewOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'scoring' | 'cross-exam'>('scoring');
   const [activeErrorId, setActiveErrorId] = useState<string | null>(null);
+  const [crossExamView, setCrossExamView] = useState<'diagram' | 'list'>('diagram');
 
   const isLoading = status === 'scoring';
   const isCrossLoading = status === 'analyzing_cross';
@@ -472,36 +474,66 @@ export default function WritingScorerPanel({
                 </div>
               ) : (
                 <>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <button
-                      onClick={handleCrossExam}
-                      disabled={isCrossLoading}
-                      className="btn btn-soft btn-sm"
-                      style={{ gap: 8 }}
-                    >
-                      {isCrossLoading ? (
-                        <>
-                          <span style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid var(--ink-3)', borderTopColor: 'var(--accent-deep)', animation: 'spin 0.7s linear infinite', display: 'inline-block', flexShrink: 0 }} />
-                          Đang phân tích...
-                        </>
-                      ) : (
-                        <>
-                          <Icon name="globe" size={14} />
-                          {crossExamResults !== null ? 'Phân tích lại' : 'Phân tích đa đề'}
-                        </>
-                      )}
-                    </button>
-                    <span style={{ fontSize: 11, color: 'var(--ink-3)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <Icon name="sparkle" size={11} />
-                      Tốn thêm 1 lượt Gemini API
-                    </span>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <button
+                        onClick={handleCrossExam}
+                        disabled={isCrossLoading}
+                        className="btn btn-soft btn-sm"
+                        style={{ gap: 8 }}
+                      >
+                        {isCrossLoading ? (
+                          <>
+                            <span style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid var(--ink-3)', borderTopColor: 'var(--accent-deep)', animation: 'spin 0.7s linear infinite', display: 'inline-block', flexShrink: 0 }} />
+                            Đang phân tích...
+                          </>
+                        ) : (
+                          <>
+                            <Icon name="globe" size={14} />
+                            {crossExamResults !== null ? 'Phân tích lại' : 'Phân tích đa đề'}
+                          </>
+                        )}
+                      </button>
+                      <span style={{ fontSize: 11, color: 'var(--ink-3)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <Icon name="sparkle" size={11} />
+                        Tốn thêm 1 lượt Gemini API
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'inline-flex', gap: 2, padding: 3, background: 'rgba(255,255,255,0.6)', borderRadius: 'var(--r-pill)', border: '1px solid var(--glass-edge)', opacity: crossExamResults === null ? 0.4 : 1, pointerEvents: crossExamResults === null ? 'none' : 'auto' }}>
+                      {([
+                        ['diagram', 'Sơ đồ',    'globe'],
+                        ['list',    'Danh sách', 'list'],
+                      ] as const).map(([view, label, icon]) => {
+                        const isActive = crossExamView === view;
+                        return (
+                          <button
+                            key={view}
+                            onClick={() => setCrossExamView(view)}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: 5,
+                              padding: '5px 12px', borderRadius: 'var(--r-pill)',
+                              fontSize: 11, fontWeight: 700, border: 'none', cursor: 'pointer',
+                              transition: 'all 150ms var(--ease)',
+                              background: isActive ? 'var(--accent)' : 'transparent',
+                              color: isActive ? 'var(--accent-ink)' : 'var(--ink-3)',
+                              boxShadow: isActive ? 'var(--sh-glow)' : 'none',
+                            }}
+                          >
+                            <Icon name={icon} size={11} />
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
 
                   {isCrossLoading && <LoadingDots label="Đang so sánh với các đề khác..." />}
 
                   {crossExamResults !== null && !isCrossLoading && (
                     <div className="glass-2" style={{ padding: 18, borderRadius: 'var(--r-md)' }}>
-                      <CrossExamResultPanel results={crossExamResults} />
+                      {crossExamView === 'diagram' && <CrossExamDiagram results={crossExamResults} />}
+                      {crossExamView === 'list'    && <CrossExamResultPanel results={crossExamResults} />}
                     </div>
                   )}
                 </>

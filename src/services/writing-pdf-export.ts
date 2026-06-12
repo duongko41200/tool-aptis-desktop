@@ -1,12 +1,16 @@
-﻿import { invoke } from '@tauri-apps/api/core';
-import type { ScoringResult, CrossExamResult, GrammarError } from '../types/writing-scorer';
-import writingData from '../public/data/exams/writing-part4.json';
+﻿import { invoke } from "@tauri-apps/api/core";
+import writingData from "../public/data/exams/writing-part4.json";
+import type {
+  CrossExamResult,
+  GrammarError,
+  ScoringResult,
+} from "../types/writing-scorer";
 
 export interface PdfExportParams {
   essay: string;
   examId: string;
   examTitle: string;
-  letterType: 'formal' | 'informal';
+  letterType: "formal" | "informal";
   savedAt?: string;
   result: ScoringResult;
   crossExamResults?: CrossExamResult[] | null;
@@ -15,34 +19,52 @@ export interface PdfExportParams {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function fmtDate(iso?: string): string {
-  if (!iso) return '';
-  return new Date(iso).toLocaleDateString('vi-VN', {
-    day: '2-digit', month: '2-digit', year: 'numeric',
-    hour: '2-digit', minute: '2-digit',
+  if (!iso) return "";
+  return new Date(iso).toLocaleDateString("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
   });
 }
 
 function esc(s: string): string {
   return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
-
-const CEFR_CFG: Record<string, { color: string; bg: string; border: string; label: string }> = {
-  A2: { color: '#b52020', bg: '#fdeaea', border: '#f5a0a0', label: 'Cơ bản' },
-  B1: { color: '#a05c10', bg: '#fef3e2', border: '#f5c87a', label: 'Trung cấp' },
-  B2: { color: '#1a7a3a', bg: '#e8f7ee', border: '#7ecb9a', label: 'Trên trung cấp' },
-  C1: { color: '#1a4a8a', bg: '#e8eef8', border: '#7aaae0', label: 'Nâng cao' },
+const CEFR_CFG: Record<
+  string,
+  { color: string; bg: string; border: string; label: string }
+> = {
+  A2: { color: "#b52020", bg: "#fdeaea", border: "#f5a0a0", label: "Cơ bản" },
+  B1: {
+    color: "#a05c10",
+    bg: "#fef3e2",
+    border: "#f5c87a",
+    label: "Trung cấp",
+  },
+  B2: {
+    color: "#1a7a3a",
+    bg: "#e8f7ee",
+    border: "#7ecb9a",
+    label: "Trên trung cấp",
+  },
+  C1: { color: "#1a4a8a", bg: "#e8eef8", border: "#7aaae0", label: "Nâng cao" },
 };
 
-const ERROR_TYPE_CFG: Record<GrammarError['type'], { label: string; color: string; bg: string }> = {
-  grammar:     { label: 'Ngữ pháp',  color: '#b52020', bg: '#fdeaea' },
-  spelling:    { label: 'Chính tả',  color: '#a05c10', bg: '#fef3e2' },
-  vocabulary:  { label: 'Từ vựng',   color: '#1a4a8a', bg: '#e8eef8' },
-  punctuation: { label: 'Dấu câu',   color: '#5a208a', bg: '#f3eafa' },
+const ERROR_TYPE_CFG: Record<
+  GrammarError["type"],
+  { label: string; color: string; bg: string }
+> = {
+  grammar: { label: "Ngữ pháp", color: "#b52020", bg: "#fdeaea" },
+  spelling: { label: "Chính tả", color: "#a05c10", bg: "#fef3e2" },
+  vocabulary: { label: "Từ vựng", color: "#1a4a8a", bg: "#e8eef8" },
+  punctuation: { label: "Dấu câu", color: "#5a208a", bg: "#f3eafa" },
 };
 
 // ── Essay with inline error highlights ───────────────────────────────────────
@@ -51,14 +73,16 @@ function buildEssayHtml(essay: string, errors: GrammarError[]): string {
   if (!errors.length) return `<span>${esc(essay)}</span>`;
 
   const positions = errors
-    .map(e => {
+    .map((e) => {
       const idx = essay.indexOf(e.originalText);
-      return idx >= 0 ? { start: idx, end: idx + e.originalText.length, error: e } : null;
+      return idx >= 0
+        ? { start: idx, end: idx + e.originalText.length, error: e }
+        : null;
     })
     .filter((p): p is NonNullable<typeof p> => p !== null)
     .sort((a, b) => a.start - b.start);
 
-  let html = '';
+  let html = "";
   let cursor = 0;
 
   for (const pos of positions) {
@@ -76,18 +100,20 @@ function buildEssayHtml(essay: string, errors: GrammarError[]): string {
 // Accent colours: warm, muted — not primary-hue saturated
 
 const SECT = {
-  format:  { rule: '#4a8a7a', dot: '#c4efe6', ink: '#1a4a42' },
-  grammar: { rule: '#9a4030', dot: '#f5d8d0', ink: '#5a1a10' },
-  content: { rule: '#6a48a8', dot: '#ddd0f8', ink: '#3a2060' },
-  b2:      { rule: '#a07828', dot: '#f5e8c0', ink: '#5a4010' },
-  cross:   { rule: '#3a7850', dot: '#c0e8d0', ink: '#1a4828' },
-  essay:   { rule: '#3a5fa8', dot: '#c8d8f8', ink: '#1a2f60' },
+  format: { rule: "#4a8a7a", dot: "#c4efe6", ink: "#1a4a42" },
+  grammar: { rule: "#9a4030", dot: "#f5d8d0", ink: "#5a1a10" },
+  content: { rule: "#6a48a8", dot: "#ddd0f8", ink: "#3a2060" },
+  b2: { rule: "#a07828", dot: "#f5e8c0", ink: "#5a4010" },
+  cross: { rule: "#3a7850", dot: "#c0e8d0", ink: "#1a4828" },
+  essay: { rule: "#3a5fa8", dot: "#c8d8f8", ink: "#1a2f60" },
 };
 
 function sCard(
-  num: string, title: string,
-  sect: typeof SECT[keyof typeof SECT],
-  badge: string, body: string,
+  num: string,
+  title: string,
+  sect: (typeof SECT)[keyof typeof SECT],
+  badge: string,
+  body: string,
 ): string {
   return `
   <div class="s-card" style="--rule:${sect.rule};--dot:${sect.dot};--ink:${sect.ink};">
@@ -103,9 +129,15 @@ function sCard(
   </div>`;
 }
 
-function scorePill(score: number, max: number, _sect: typeof SECT[keyof typeof SECT]): string {
+function scorePill(
+  score: number,
+  max: number,
+  _sect: (typeof SECT)[keyof typeof SECT],
+): string {
   const pct = score / max;
-  const warmGood = '#4a7a28', warmMid = '#9a6820', warmLow = '#8a2a1a';
+  const warmGood = "#4a7a28",
+    warmMid = "#9a6820",
+    warmLow = "#8a2a1a";
   const c = pct >= 0.7 ? warmGood : pct >= 0.5 ? warmMid : warmLow;
   return `<div class="score-pill" style="color:${c};border-color:${c}50;background:${c}12;">
     <span class="sp-n">${score}</span><span class="sp-d"> / ${max}</span>
@@ -116,38 +148,49 @@ function scorePill(score: number, max: number, _sect: typeof SECT[keyof typeof S
 
 function renderFormatCheck(result: ScoringResult): string {
   const fc = result.formatCheck;
-  if (!fc) return '';
+  if (!fc) return "";
   const s = SECT.format;
 
   const LABELS: Record<string, string> = {
-    greeting: 'Lời chào', openingLine: 'Câu mở đầu', body: 'Nội dung chính',
-    suggestions: 'Đề xuất / Ý kiến', closing: 'Câu kết', signature: 'Chữ ký',
+    greeting: "Lời chào",
+    openingLine: "Câu mở đầu",
+    body: "Nội dung chính",
+    suggestions: "Đề xuất / Ý kiến",
+    closing: "Câu kết",
+    signature: "Chữ ký",
   };
 
-  const rows = Object.entries(fc.components).map(([key, comp]: [string, any]) => {
-    const label = LABELS[key] ?? key;
-    const extra = comp.count != null ? ` (${comp.count})` : comp.paragraphCount != null ? ` (${comp.paragraphCount} đoạn)` : '';
-    const found = !!comp.found;
-    return `<tr>
+  const rows = Object.entries(fc.components)
+    .map(([key, comp]: [string, any]) => {
+      const label = LABELS[key] ?? key;
+      const extra =
+        comp.count != null
+          ? ` (${comp.count})`
+          : comp.paragraphCount != null
+            ? ` (${comp.paragraphCount} đoạn)`
+            : "";
+      const found = !!comp.found;
+      return `<tr>
       <td style="width:32px;text-align:center;padding:8px 6px;">
         <span style="display:inline-flex;align-items:center;justify-content:center;
           width:20px;height:20px;border-radius:50%;font-size:11px;font-weight:800;
-          background:${found ? '#d0f0e4' : '#f8ddd8'};color:${found ? s.ink : '#7a2018'};">
-          ${found ? '✓' : '✗'}
+          background:${found ? "#d0f0e4" : "#f8ddd8"};color:${found ? s.ink : "#7a2018"};">
+          ${found ? "✓" : "✗"}
         </span>
       </td>
       <td style="padding:8px 12px;font-weight:700;color:#2a2018;">${esc(label)}${extra}</td>
       <td style="padding:8px 12px;color:#7a6e66;font-style:italic;font-size:12px;">
         ${comp.text ? `"${esc(comp.text)}"` : '<span style="color:#c0b8b0;">—</span>'}
       </td>
-      <td style="padding:8px 12px;font-size:12px;color:${found ? '#6a5020' : '#8a2018'};">
-        ${comp.note ? esc(comp.note) : ''}
+      <td style="padding:8px 12px;font-size:12px;color:${found ? "#6a5020" : "#8a2018"};">
+        ${comp.note ? esc(comp.note) : ""}
       </td>
     </tr>`;
-  }).join('');
+    })
+    .join("");
 
-  const passedBadge = `<span class="warm-chip" style="background:${fc.passed ? '#d0f0e4' : '#f8ddd8'};color:${fc.passed ? s.ink : '#7a2018'};">
-    ${fc.passed ? 'Đạt yêu cầu' : 'Chưa đạt'}
+  const passedBadge = `<span class="warm-chip" style="background:${fc.passed ? "#d0f0e4" : "#f8ddd8"};color:${fc.passed ? s.ink : "#7a2018"};">
+    ${fc.passed ? "Đạt yêu cầu" : "Chưa đạt"}
   </span>`;
 
   const body = `
@@ -160,26 +203,36 @@ function renderFormatCheck(result: ScoringResult): string {
       <tbody>${rows}</tbody>
     </table>`;
 
-  return sCard('02', 'Cấu trúc bài viết', s, `${scorePill(fc.score, 5, s)} ${passedBadge}`, body);
+  return sCard(
+    "02",
+    "Cấu trúc bài viết",
+    s,
+    `${scorePill(fc.score, 5, s)} ${passedBadge}`,
+    body,
+  );
 }
 
 function renderGrammarCheck(result: ScoringResult): string {
   const gc = result.grammarCheck;
-  if (!gc) return '';
+  if (!gc) return "";
   const s = SECT.grammar;
   const errors = gc.errors ?? [];
 
-  const ERROR_WARM: Record<GrammarError['type'], { label: string; bg: string; fg: string }> = {
-    grammar:     { label: 'Ngữ pháp',  bg: '#f8ddd8', fg: '#7a2018' },
-    spelling:    { label: 'Chính tả',  bg: '#fce8ca', fg: '#7a4010' },
-    vocabulary:  { label: 'Từ vựng',   bg: '#d8e0f8', fg: '#2a3878' },
-    punctuation: { label: 'Dấu câu',   bg: '#e8d8f8', fg: '#5a2878' },
+  const ERROR_WARM: Record<
+    GrammarError["type"],
+    { label: string; bg: string; fg: string }
+  > = {
+    grammar: { label: "Ngữ pháp", bg: "#f8ddd8", fg: "#7a2018" },
+    spelling: { label: "Chính tả", bg: "#fce8ca", fg: "#7a4010" },
+    vocabulary: { label: "Từ vựng", bg: "#d8e0f8", fg: "#2a3878" },
+    punctuation: { label: "Dấu câu", bg: "#e8d8f8", fg: "#5a2878" },
   };
 
-  const rows = errors.map((e, i) => {
-    const cfg = ERROR_WARM[e.type] ?? ERROR_WARM.grammar;
-    return `<tr>
-      <td style="width:32px;text-align:center;font-size:11px;font-family:'JetBrains Mono',monospace;color:#a09088;">${String(i+1).padStart(2,'0')}</td>
+  const rows = errors
+    .map((e, i) => {
+      const cfg = ERROR_WARM[e.type] ?? ERROR_WARM.grammar;
+      return `<tr>
+      <td style="width:32px;text-align:center;font-size:11px;font-family:'JetBrains Mono',monospace;color:#a09088;">${String(i + 1).padStart(2, "0")}</td>
       <td style="padding:8px 10px;width:88px;">
         <span class="warm-chip" style="background:${cfg.bg};color:${cfg.fg};">${cfg.label}</span>
       </td>
@@ -190,16 +243,18 @@ function renderGrammarCheck(result: ScoringResult): string {
         <span style="color:#2a6030;font-weight:700;font-family:'JetBrains Mono',monospace;font-size:12px;
           background:#d0f0d8;padding:1px 6px;border-radius:6px;">${esc(e.correction)}</span>
       </td>
-      <td style="padding:8px 10px;font-size:11.5px;color:#7a6e66;">${e.note ? esc(e.note) : ''}</td>
+      <td style="padding:8px 10px;font-size:11.5px;color:#7a6e66;">${e.note ? esc(e.note) : ""}</td>
     </tr>`;
-  }).join('');
+    })
+    .join("");
 
-  const body = errors.length === 0
-    ? `<p class="s-desc">${esc(gc.feedback)}</p>
+  const body =
+    errors.length === 0
+      ? `<p class="s-desc">${esc(gc.feedback)}</p>
        <div style="padding:16px 20px;border-radius:12px;background:#d8f0e4;border:1.5px solid #a0d8b8;">
          <p style="font-weight:700;color:#1a5030;font-size:13px;">Tốt lắm — không có lỗi ngữ pháp nào được tìm thấy.</p>
        </div>`
-    : `<p class="s-desc">${esc(gc.feedback)}</p>
+      : `<p class="s-desc">${esc(gc.feedback)}</p>
        <table class="warm-table" style="--thead:${s.rule};">
          <thead><tr>
            <th style="width:32px;text-align:center;">#</th>
@@ -210,32 +265,41 @@ function renderGrammarCheck(result: ScoringResult): string {
          <tbody>${rows}</tbody>
        </table>`;
 
-  const errBadge = errors.length > 0
-    ? `<span class="warm-chip" style="background:#f8ddd8;color:#7a2018;">${errors.length} lỗi cần sửa</span>`
-    : `<span class="warm-chip" style="background:#d0f0e4;color:#1a5030;">Không có lỗi</span>`;
+  const errBadge =
+    errors.length > 0
+      ? `<span class="warm-chip" style="background:#f8ddd8;color:#7a2018;">${errors.length} lỗi cần sửa</span>`
+      : `<span class="warm-chip" style="background:#d0f0e4;color:#1a5030;">Không có lỗi</span>`;
 
-  return sCard('03', 'Ngữ pháp &amp; Chính tả', s, `${scorePill(gc.score, 5, s)} ${errBadge}`, body);
+  return sCard(
+    "03",
+    "Ngữ pháp &amp; Chính tả",
+    s,
+    `${scorePill(gc.score, 5, s)} ${errBadge}`,
+    body,
+  );
 }
 
 function renderContentAnalysis(result: ScoringResult): string {
   const ca = result.contentAnalysis;
-  if (!ca) return '';
+  if (!ca) return "";
   const s = SECT.content;
 
   const covPct = Math.round(ca.promptCoverage ?? 0);
-  const covGood = covPct >= 70, covMid = covPct >= 50;
-  const covFg = covGood ? '#3a2060' : covMid ? '#5a4010' : '#6a1818';
-  const covBg = covGood ? '#e0d8f8' : covMid ? '#f8e8c0' : '#f8d8d0';
-  const barFill = covGood ? '#6a48a8' : covMid ? '#a07828' : '#a03020';
+  const covGood = covPct >= 70,
+    covMid = covPct >= 50;
+  const covFg = covGood ? "#3a2060" : covMid ? "#5a4010" : "#6a1818";
+  const covBg = covGood ? "#e0d8f8" : covMid ? "#f8e8c0" : "#f8d8d0";
+  const barFill = covGood ? "#6a48a8" : covMid ? "#a07828" : "#a03020";
 
-  const solutions = (ca.solutions ?? []).map((s_item, i) => {
-    const relevant = s_item.relevantToPrompt !== false;
-    return `
+  const solutions = (ca.solutions ?? [])
+    .map((s_item, i) => {
+      const relevant = s_item.relevantToPrompt !== false;
+      return `
       <div style="display:flex;gap:12px;padding:12px 14px;border-radius:12px;
-        background:${relevant ? '#f0ece4' : '#f8ece8'};
-        border:1.5px solid ${relevant ? '#d4c8b8' : '#e8c8c0'};margin-bottom:8px;">
+        background:${relevant ? "#f0ece4" : "#f8ece8"};
+        border:1.5px solid ${relevant ? "#d4c8b8" : "#e8c8c0"};margin-bottom:8px;">
         <div style="width:26px;height:26px;border-radius:50%;
-          background:${relevant ? s.rule : '#9a4030'};color:#faf5ed;
+          background:${relevant ? s.rule : "#9a4030"};color:#faf5ed;
           display:flex;align-items:center;justify-content:center;
           font-size:11px;font-weight:800;font-family:'JetBrains Mono',monospace;
           flex-shrink:0;margin-top:2px;">${i + 1}</div>
@@ -243,16 +307,17 @@ function renderContentAnalysis(result: ScoringResult): string {
           <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:4px;">
             <span style="font-size:13px;font-weight:700;color:#2a2018;flex:1;">${esc(s_item.idea)}</span>
             <span class="warm-chip" style="flex-shrink:0;
-              background:${relevant ? '#d4e8d0' : '#f0d0c8'};
-              color:${relevant ? '#2a5020' : '#6a2018'};">
-              ${relevant ? 'Đúng chủ đề' : 'Lạc đề'}
+              background:${relevant ? "#d4e8d0" : "#f0d0c8"};
+              color:${relevant ? "#2a5020" : "#6a2018"};">
+              ${relevant ? "Đúng chủ đề" : "Lạc đề"}
             </span>
           </div>
-          ${s_item.originalText ? `<p style="margin:0 0 3px;font-size:12px;color:#7a6e66;font-style:italic;line-height:1.6;">"${esc(s_item.originalText)}"</p>` : ''}
-          ${s_item.relevanceNote ? `<p style="margin:0;font-size:11.5px;color:#a09088;">${esc(s_item.relevanceNote)}</p>` : ''}
+          ${s_item.originalText ? `<p style="margin:0 0 3px;font-size:12px;color:#7a6e66;font-style:italic;line-height:1.6;">"${esc(s_item.originalText)}"</p>` : ""}
+          ${s_item.relevanceNote ? `<p style="margin:0;font-size:11.5px;color:#a09088;">${esc(s_item.relevanceNote)}</p>` : ""}
         </div>
       </div>`;
-  }).join('');
+    })
+    .join("");
 
   const covBadge = `<div style="display:flex;align-items:center;gap:7px;">
     <span style="font-size:11px;font-weight:600;color:#7a6e66;">Bao phủ đề</span>
@@ -263,34 +328,60 @@ function renderContentAnalysis(result: ScoringResult): string {
   </div>`;
 
   const body = `<p class="s-desc">${esc(ca.feedback)}</p><div>${solutions}</div>`;
-  return sCard('04', 'Phân tích nội dung', s, `${scorePill(ca.score, 10, s)} ${covBadge}`, body);
+  return sCard(
+    "04",
+    "Phân tích nội dung",
+    s,
+    `${scorePill(ca.score, 10, s)} ${covBadge}`,
+    body,
+  );
 }
 
 function renderB2Criteria(result: ScoringResult): string {
   const b2 = result.b2Criteria;
-  if (!b2) return '';
+  if (!b2) return "";
   const s = SECT.b2;
 
   const cefr = b2.cefrLevel;
   const cefrCfg = cefr ? CEFR_CFG[cefr] : null;
 
   const CRITERIA = [
-    { key: 'vocabulary',      label: 'Từ vựng đa dạng',   desc: 'Phạm vi và độ phong phú',   max: 3 },
-    { key: 'cohesion',        label: 'Mạch lạc văn bản',   desc: 'Từ nối, liên kết ý tưởng',  max: 3 },
-    { key: 'register',        label: 'Văn phong phù hợp',  desc: 'Formal / Informal',           max: 2 },
-    { key: 'sentenceVariety', label: 'Đa dạng cấu trúc',   desc: 'Câu đơn, ghép, phức',        max: 2 },
+    {
+      key: "vocabulary",
+      label: "Từ vựng đa dạng",
+      desc: "Phạm vi và độ phong phú",
+      max: 3,
+    },
+    {
+      key: "cohesion",
+      label: "Mạch lạc văn bản",
+      desc: "Từ nối, liên kết ý tưởng",
+      max: 3,
+    },
+    {
+      key: "register",
+      label: "Văn phong phù hợp",
+      desc: "Formal / Informal",
+      max: 2,
+    },
+    {
+      key: "sentenceVariety",
+      label: "Đa dạng cấu trúc",
+      desc: "Câu đơn, ghép, phức",
+      max: 2,
+    },
   ] as const;
 
   const criteriaHtml = CRITERIA.map(({ key, label, desc, max }, idx) => {
     const c = (b2 as any)[key];
     const score = c?.score ?? 0;
-    const note = c?.note ?? '';
+    const note = c?.note ?? "";
     const pct = Math.round((score / max) * 100);
-    const barFill = pct >= 70 ? '#a07828' : pct >= 50 ? '#b05820' : '#9a3820';
-    const numColor = pct >= 70 ? '#6a5010' : pct >= 50 ? '#7a3810' : '#7a2010';
+    const barFill = pct >= 70 ? "#a07828" : pct >= 50 ? "#b05820" : "#9a3820";
+    const numColor = pct >= 70 ? "#6a5010" : pct >= 50 ? "#7a3810" : "#7a2010";
     return `
       <div style="padding:11px 14px;border-radius:12px;background:#fdf8ee;
-        border:1.5px solid #e8ddc8;margin-bottom:8px;${idx === 0 ? 'margin-top:4px;' : ''}">
+        border:1.5px solid #e8ddc8;margin-bottom:8px;${idx === 0 ? "margin-top:4px;" : ""}">
         <div style="display:flex;align-items:center;gap:8px;">
           <div style="flex:1;">
             <span style="font-size:13px;font-weight:700;color:#2a2018;">${label}</span>
@@ -304,11 +395,13 @@ function renderB2Criteria(result: ScoringResult): string {
               color:${numColor};min-width:30px;text-align:right;">${score}/${max}</span>
           </div>
         </div>
-        ${note ? `<p style="margin:7px 0 0;font-size:11.5px;color:#7a6e66;line-height:1.55;">${esc(note)}</p>` : ''}
+        ${note ? `<p style="margin:7px 0 0;font-size:11.5px;color:#7a6e66;line-height:1.55;">${esc(note)}</p>` : ""}
       </div>`;
-  }).join('');
+  }).join("");
 
-  const cefrBadgeHtml = cefrCfg && cefr ? `
+  const cefrBadgeHtml =
+    cefrCfg && cefr
+      ? `
     <div style="display:flex;align-items:center;gap:14px;padding:13px 16px;border-radius:12px;
       background:#fdf0d8;border:1.5px solid #e0c890;margin-bottom:12px;">
       <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;
@@ -316,59 +409,85 @@ function renderB2Criteria(result: ScoringResult): string {
         <span style="font-size:20px;font-weight:900;color:${s.ink};line-height:1;font-family:'JetBrains Mono',monospace;">${cefr}</span>
         <span style="font-size:9px;font-weight:700;color:${s.ink};opacity:0.7;margin-top:2px;">${cefrCfg.label}</span>
       </div>
-      <p style="margin:0;font-size:12.5px;color:#5a4010;line-height:1.6;font-weight:500;">${b2.cefrNote ? esc(b2.cefrNote) : ''}</p>
-    </div>` : '';
+      <p style="margin:0;font-size:12.5px;color:#5a4010;line-height:1.6;font-weight:500;">${b2.cefrNote ? esc(b2.cefrNote) : ""}</p>
+    </div>`
+      : "";
 
   const body = `<p class="s-desc">${esc(b2.feedback)}</p>${cefrBadgeHtml}${criteriaHtml}`;
-  return sCard('05', 'Chất lượng ngôn ngữ B2', s, scorePill(b2.score, 10, s), body);
+  return sCard(
+    "05",
+    "Tiêu chí chấm của APTIS  B2",
+    s,
+    scorePill(b2.score, 10, s),
+    body,
+  );
 }
 
 function renderCrossExam(crossExamResults: CrossExamResult[]): string {
-  const withApplicable = crossExamResults.filter(r => r.applicableExams.length > 0);
-  if (!withApplicable.length) return '';
+  const withApplicable = crossExamResults.filter(
+    (r) => r.applicableExams.length > 0,
+  );
+  if (!withApplicable.length) return "";
   const s = SECT.cross;
 
-  const items = withApplicable.map(item => {
-    const exams = item.applicableExams.map(exam => {
-      const isDirect = exam.applicability === 'direct';
-      const examData = (writingData as any[]).find((e: any) => e._id === exam.examId);
-      const sub0 = examData?.questions?.[0]?.subQuestion?.[0]?.content ?? '';
-      const sub1 = examData?.questions?.[0]?.subQuestion?.[1]?.content ?? '';
+  const items = withApplicable
+    .map((item) => {
+      const exams = item.applicableExams
+        .map((exam) => {
+          const isDirect = exam.applicability === "direct";
+          const examData = (writingData as any[]).find(
+            (e: any) => e._id === exam.examId,
+          );
+          const sub0 =
+            examData?.questions?.[0]?.subQuestion?.[0]?.content ?? "";
+          const sub1 =
+            examData?.questions?.[0]?.subQuestion?.[1]?.content ?? "";
 
-      return `
+          return `
         <div style="padding:10px 14px;border-top:1px solid #c8e0c8;background:#f8fcf8;">
           <div style="display:flex;align-items:flex-start;gap:8px;">
             <span style="font-size:13px;font-weight:700;color:#2a2018;flex:1;">${esc(exam.examTitle)}</span>
             <span class="warm-chip" style="flex-shrink:0;
-              background:${isDirect ? '#d0ecd8' : '#f8e8c0'};
-              color:${isDirect ? '#1a4828' : '#6a4810'};">
-              ${isDirect ? 'Dùng thẳng' : 'Cần chỉnh sửa'}
+              background:${isDirect ? "#d0ecd8" : "#f8e8c0"};
+              color:${isDirect ? "#1a4828" : "#6a4810"};">
+              ${isDirect ? "Dùng thẳng" : "Cần chỉnh sửa"}
             </span>
           </div>
-          ${exam.modificationNote && !isDirect ? `<p style="margin:4px 0 0;font-size:11.5px;color:#7a6e66;">${esc(exam.modificationNote)}</p>` : ''}
-          ${(sub0 || sub1) ? `
+          ${exam.modificationNote && !isDirect ? `<p style="margin:4px 0 0;font-size:11.5px;color:#7a6e66;">${esc(exam.modificationNote)}</p>` : ""}
+          ${
+            sub0 || sub1
+              ? `
             <div style="margin-top:8px;padding:8px 12px;background:#fff;border-radius:8px;border:1px solid #c8e0c8;">
               <p style="margin:0 0 4px;font-size:10px;font-weight:700;color:#a09088;text-transform:uppercase;letter-spacing:0.06em;">Nhiệm vụ đề</p>
-              ${[sub0, sub1].filter(Boolean).map((t: string, i: number) => `
-                <p style="margin:${i > 0 ? '3px' : '0'} 0 0;font-size:11.5px;color:#5a4e44;line-height:1.55;">${i + 1}. ${esc(t)}</p>
-              `).join('')}
-            </div>` : ''}
+              ${[sub0, sub1]
+                .filter(Boolean)
+                .map(
+                  (t: string, i: number) => `
+                <p style="margin:${i > 0 ? "3px" : "0"} 0 0;font-size:11.5px;color:#5a4e44;line-height:1.55;">${i + 1}. ${esc(t)}</p>
+              `,
+                )
+                .join("")}
+            </div>`
+              : ""
+          }
         </div>`;
-    }).join('');
+        })
+        .join("");
 
-    return `
+      return `
       <div style="border-radius:12px;border:1.5px solid #b0d8b8;overflow:hidden;margin-bottom:10px;background:#fff;">
         <div style="padding:10px 14px;background:#e0f0e4;border-bottom:1.5px solid #b0d8b8;display:flex;align-items:center;gap:10px;">
           <span style="font-size:13.5px;font-weight:700;color:#1a4828;">${esc(item.solutionIdea)}</span>
         </div>
         ${exams}
       </div>`;
-  }).join('');
+    })
+    .join("");
 
   const body = `<p class="s-desc">Những ý tưởng bạn đã viết có thể tái sử dụng cho các đề dưới đây — tiết kiệm rất nhiều thời gian ôn tập.</p>${items}`;
 
   const countBadge = `<span class="warm-chip" style="background:#d0ecd8;color:#1a4828;">${withApplicable.length} ý tưởng tái dùng được</span>`;
-  return sCard('06', 'Phân tích đa đề', s, countBadge, body);
+  return sCard("06", "Phân tích đa đề", s, countBadge, body);
 }
 
 // ── Watermark ─────────────────────────────────────────────────────────────────
@@ -381,8 +500,10 @@ function makeWatermarkUrl(): string {
 // ── Main HTML builder ─────────────────────────────────────────────────────────
 
 function buildHtml(params: PdfExportParams, includeWatermark = true): string {
-  const { essay, examTitle, letterType, savedAt, result, crossExamResults } = params;
-  const typeLabel = letterType === 'formal' ? 'Thư trang trọng' : 'Thư thân mật';
+  const { essay, examTitle, letterType, savedAt, result, crossExamResults } =
+    params;
+  const typeLabel =
+    letterType === "formal" ? "Thư trang trọng" : "Thư thân mật";
   const wordCount = essay.trim() ? essay.trim().split(/\s+/).length : 0;
   const dateStr = fmtDate(savedAt);
   const errors = result.grammarCheck?.errors ?? [];
@@ -390,9 +511,12 @@ function buildHtml(params: PdfExportParams, includeWatermark = true): string {
 
   const cefr = result.b2Criteria?.cefrLevel;
   const cefrCfg = cefr ? CEFR_CFG[cefr] : null;
-  const crossHtml = crossExamResults?.length ? renderCrossExam(crossExamResults) : '';
+  const crossHtml = crossExamResults?.length
+    ? renderCrossExam(crossExamResults)
+    : "";
 
-  const wmCss = includeWatermark ? `
+  const wmCss = includeWatermark
+    ? `
     /* ── Watermark ── */
     .watermark-overlay {
       position: absolute;
@@ -405,16 +529,23 @@ function buildHtml(params: PdfExportParams, includeWatermark = true): string {
       z-index: 0;
     }
     .page > *:not(.watermark-overlay) { position: relative; z-index: 1; }
-  ` : '';
+  `
+    : "";
 
-  const wmDiv = includeWatermark ? '<div class="watermark-overlay"></div>' : '';
+  const wmDiv = includeWatermark ? '<div class="watermark-overlay"></div>' : "";
 
-  const totalScore = (result.formatCheck?.score ?? 0) + (result.contentAnalysis?.score ?? 0)
-    + (result.grammarCheck?.score ?? 0) + (result.b2Criteria?.score ?? 0);
+  const totalScore =
+    (result.formatCheck?.score ?? 0) +
+    (result.contentAnalysis?.score ?? 0) +
+    (result.grammarCheck?.score ?? 0) +
+    (result.b2Criteria?.score ?? 0);
   const totalPct = Math.round((totalScore / 30) * 100);
-  const totalGrade = totalPct >= 70 ? { label: 'Tốt', bg: '#d0ecd8', fg: '#1a4828' }
-    : totalPct >= 50 ? { label: 'Khá', bg: '#f5e4c0', fg: '#6a4010' }
-    : { label: 'Cần cố gắng', bg: '#f5d8d0', fg: '#6a1818' };
+  const totalGrade =
+    totalPct >= 70
+      ? { label: "Tốt", bg: "#d0ecd8", fg: "#1a4828" }
+      : totalPct >= 50
+        ? { label: "Khá", bg: "#f5e4c0", fg: "#6a4010" }
+        : { label: "Cần cố gắng", bg: "#f5d8d0", fg: "#6a1818" };
 
   return `<!DOCTYPE html>
 <html lang="vi">
@@ -796,8 +927,8 @@ function buildHtml(params: PdfExportParams, includeWatermark = true): string {
       <div class="cover-chips">
         <span class="cover-chip">${typeLabel}</span>
         <span class="cover-chip">${wordCount} từ</span>
-        ${dateStr ? `<span class="cover-chip">${dateStr}</span>` : ''}
-        ${cefr && cefrCfg ? `<span class="cover-chip" style="background:rgba(255,255,255,0.15);color:#fff;">CEFR ${cefr} · ${cefrCfg.label}</span>` : ''}
+        ${dateStr ? `<span class="cover-chip">${dateStr}</span>` : ""}
+        ${cefr && cefrCfg ? `<span class="cover-chip" style="background:rgba(255,255,255,0.15);color:#fff;">CEFR ${cefr} · ${cefrCfg.label}</span>` : ""}
       </div>
       <div class="score-panel">
         <div class="score-big">
@@ -806,19 +937,31 @@ function buildHtml(params: PdfExportParams, includeWatermark = true): string {
           <div class="score-big-denom">/ 30 điểm</div>
         </div>
         ${[
-          { label: 'Cấu trúc', score: result.formatCheck?.score ?? 0, max: 5 },
-          { label: 'Nội dung', score: result.contentAnalysis?.score ?? 0, max: 10 },
-          { label: 'Ngữ pháp', score: result.grammarCheck?.score ?? 0, max: 5 },
-          { label: 'Ngôn ngữ B2', score: result.b2Criteria?.score ?? 0, max: 10 },
-        ].map(({ label, score, max }) => `
+          { label: "Cấu trúc", score: result.formatCheck?.score ?? 0, max: 5 },
+          {
+            label: "Nội dung",
+            score: result.contentAnalysis?.score ?? 0,
+            max: 10,
+          },
+          { label: "Ngữ pháp", score: result.grammarCheck?.score ?? 0, max: 5 },
+          {
+            label: "Ngôn ngữ B2",
+            score: result.b2Criteria?.score ?? 0,
+            max: 10,
+          },
+        ]
+          .map(
+            ({ label, score, max }) => `
           <div class="score-item">
             <div class="score-item-label">${label}</div>
             <div class="score-item-num">${score}</div>
             <div class="score-item-max">/ ${max}</div>
             <div class="score-item-bar">
-              <div class="score-item-fill" style="width:${Math.round((score/max)*100)}%;"></div>
+              <div class="score-item-fill" style="width:${Math.round((score / max) * 100)}%;"></div>
             </div>
-          </div>`).join('')}
+          </div>`,
+          )
+          .join("")}
       </div>
     </div>
 
@@ -837,16 +980,23 @@ function buildHtml(params: PdfExportParams, includeWatermark = true): string {
           <span class="warm-chip" style="background:#e0d8f0;color:#3a2860;">${wordCount} từ</span>
         </div>
         <div class="essay-body">${essayHtml}</div>
-        ${errors.length > 0 ? `
+        ${
+          errors.length > 0
+            ? `
         <div class="essay-legend">
           ${Object.entries(ERROR_TYPE_CFG)
-            .filter(([type]) => errors.some(e => e.type === type))
-            .map(([, cfg]) => `
+            .filter(([type]) => errors.some((e) => e.type === type))
+            .map(
+              ([, cfg]) => `
               <div class="legend-chip">
                 <div class="legend-pip" style="background:${cfg.color};"></div>
                 <span>${cfg.label}</span>
-              </div>`).join('')}
-        </div>` : ''}
+              </div>`,
+            )
+            .join("")}
+        </div>`
+            : ""
+        }
       </div>
 
       ${renderFormatCheck(result)}
@@ -864,7 +1014,7 @@ function buildHtml(params: PdfExportParams, includeWatermark = true): string {
           <span style="font-size:11.5px;color:var(--ink-3);margin-left:6px;">· Luyện thi APTIS</span>
         </div>
         <div style="display:flex;align-items:center;gap:10px;">
-          ${dateStr ? `<span style="font-size:11px;color:var(--ink-3);">${dateStr}</span>` : ''}
+          ${dateStr ? `<span style="font-size:11px;color:var(--ink-3);">${dateStr}</span>` : ""}
           <span class="warm-chip" style="background:${totalGrade.bg};color:${totalGrade.fg};">
             <span style="font-family:'JetBrains Mono',monospace;">${totalScore}/30</span>
             &nbsp;·&nbsp;${totalGrade.label}
@@ -888,20 +1038,23 @@ export function buildPreviewHtml(params: PdfExportParams): string {
 // Rust backend renders the HTML with a headless browser and saves the PDF
 // directly to the user's Desktop, then opens it automatically.
 
-export async function exportWritingPdf(params: PdfExportParams): Promise<string> {
+export async function exportWritingPdf(
+  params: PdfExportParams,
+): Promise<string> {
   const html = buildHtml(params, true);
 
-  const safeFilename = `APTIS_Writing_${params.examTitle
-    .replace(/[^\w\s-]/g, '')
-    .trim()
-    .slice(0, 40)
-    .replace(/\s+/g, '_') || 'report'}`;
+  const safeFilename = `APTIS_Writing_${
+    params.examTitle
+      .replace(/[^\w\s-]/g, "")
+      .trim()
+      .slice(0, 40)
+      .replace(/\s+/g, "_") || "report"
+  }`;
 
-  const savedPath = await invoke<string>('export_pdf_headless', {
+  const savedPath = await invoke<string>("export_pdf_headless", {
     html,
     filename: safeFilename,
   });
 
   return savedPath;
 }
-
