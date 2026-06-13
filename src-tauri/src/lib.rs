@@ -7,6 +7,8 @@ use std::sync::atomic::AtomicBool;
 use std::path::PathBuf;
 use rusqlite::Connection;
 use tauri::{Manager, Emitter};
+use tauri::tray::{TrayIconBuilder, MouseButton, MouseButtonState, TrayIconEvent};
+use tauri::menu::{Menu, MenuItemBuilder};
 
 pub struct AppState {
     pub db: Mutex<Connection>,
@@ -23,6 +25,8 @@ struct ClipboardChangedPayload {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_autostart::Builder::new().build())
+        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_positioner::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
@@ -44,7 +48,55 @@ pub fn run() {
             ])
             .build())
         .plugin(tauri_plugin_clipboard_manager::init())
+        .on_window_event(|window, event| match event {
+            tauri::WindowEvent::CloseRequested { api, .. } => {
+                if window.label() == "main" {
+                    window.hide().unwrap();
+                    api.prevent_close();
+                }
+            }
+            _ => {}
+        })
         .setup(|app| {
+            // Setup Tray Menu
+            let quit_i = MenuItemBuilder::with_id("quit", "Thoát hoàn toàn").build(app)?;
+            let show_i = MenuItemBuilder::with_id("show", "Mở ứng dụng Aptis").build(app)?;
+            let menu = tauri::menu::MenuBuilder::new(app)
+                .item(&show_i)
+                .separator()
+                .item(&quit_i)
+                .build()?;
+
+            let _tray = TrayIconBuilder::new()
+                .icon(app.default_window_icon().unwrap().clone())
+                .tooltip("Aptis English Learning")
+                .menu(&menu)
+                .on_menu_event(move |app, event| match event.id.as_ref() {
+                    "quit" => {
+                        app.exit(0);
+                    }
+                    "show" => {
+                        if let Some(window) = app.get_webview_window("main") {
+                            window.show().unwrap();
+                            window.set_focus().unwrap();
+                        }
+                    }
+                    _ => {}
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } = event {
+                        if let Some(window) = tray.app_handle().get_webview_window("main") {
+                            window.show().unwrap();
+                            window.set_focus().unwrap();
+                        }
+                    }
+                })
+                .build(app)?;
+
             let app_data_dir = app.path().app_data_dir()
                 .expect("failed to get app data dir");
             std::fs::create_dir_all(&app_data_dir)?;

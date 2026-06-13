@@ -1,10 +1,12 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { useQueryClient } from '@tanstack/react-query';
 import { listen } from '@tauri-apps/api/event';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import bgGif from './public/img/1_1IDOLADBDduPo-kjXpeGAA.gif';
 import { setOnlineStatus } from './store/appSlice';
+import { initNotificationWatcher } from './services/notification-service';
+import { enable, isEnabled } from '@tauri-apps/plugin-autostart';
 
 import { TweaksProvider, useTweaks } from './contexts/TweaksContext';
 import TweaksPanel                   from './components/shared/TweaksPanel';
@@ -17,6 +19,8 @@ import ToolsPage             from './pages/ToolsPage';
 import VocabPage             from './pages/VocabPage';
 import ListeningPage         from './pages/ListeningPage';
 import RagChatPage           from './pages/RagChatPage';
+import CalendarPage          from './pages/CalendarPage';
+import Icon from './components/common/Icon';
 
 /* ── Rain particle effect ───────────────────────────── */
 function Rain() {
@@ -71,6 +75,8 @@ function AppShell() {
   const dispatch = useDispatch();
   const qc = useQueryClient();
   const { tweaks } = useTweaks();
+  const navigate = useNavigate();
+  const [toast, setToast] = useState<{title: string, body: string, visible: boolean} | null>(null);
 
   useEffect(() => {
     const up   = () => dispatch(setOnlineStatus(true));
@@ -82,6 +88,48 @@ function AppShell() {
       window.removeEventListener('offline', down);
     };
   }, [dispatch]);
+
+  // Init Notifications Watcher & Autostart
+  useEffect(() => {
+    initNotificationWatcher();
+
+    // Enable auto-start with Windows
+    isEnabled().then(enabled => {
+      if (!enabled) {
+        enable().catch(console.error);
+      }
+    }).catch(console.error);
+
+    const handleNavigate = (e: Event) => {
+      const customEvent = e as CustomEvent<string>;
+      if (customEvent.detail) {
+        navigate(customEvent.detail);
+      }
+    };
+
+    const handleToast = (e: Event) => {
+      const customEvent = e as CustomEvent<{title: string, body: string}>;
+      if (customEvent.detail) {
+        setToast({ ...customEvent.detail, visible: true });
+        try {
+          const audio = new Audio('/src/public/sounds/notification.mp3');
+          audio.volume = 0.5;
+          audio.play().catch(() => {});
+        } catch(e) {}
+        setTimeout(() => {
+          setToast(prev => prev ? { ...prev, visible: false } : null);
+        }, 5000);
+      }
+    };
+
+    window.addEventListener('calendar-navigate', handleNavigate);
+    window.addEventListener('app-toast', handleToast);
+    
+    return () => {
+      window.removeEventListener('calendar-navigate', handleNavigate);
+      window.removeEventListener('app-toast', handleToast);
+    };
+  }, [navigate]);
 
   // Sync cache when popup creates decks or notes
   useEffect(() => {
@@ -113,11 +161,45 @@ function AppShell() {
           <Route path="/vocab"             element={<VocabPage />} />
           <Route path="/listening"        element={<ListeningPage />} />
           <Route path="/rag-chat"           element={<RagChatPage />} />
+          <Route path="/calendar"           element={<CalendarPage />} />
           <Route path="/tools"             element={<Navigate to="/tools/vocabulary" replace />} />
           <Route path="/tools/:tab"        element={<ToolsPage />} />
           <Route path="*"                  element={<Navigate to="/" replace />} />
         </Routes>
       </div>
+
+      {/* IN-APP TOAST NOTIFICATION */}
+      {toast && (
+        <div style={{
+          position: 'fixed',
+          bottom: 30,
+          right: 30,
+          background: 'var(--ink)',
+          border: '1px solid rgba(255, 255, 255, 0.1)',
+          borderRadius: 'var(--r-lg)',
+          padding: '16px 20px',
+          boxShadow: '0 10px 30px rgba(0,0,0,0.25)',
+          zIndex: 99999,
+          maxWidth: 350,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 8,
+          transform: toast.visible ? 'translateY(0)' : 'translateY(20px)',
+          opacity: toast.visible ? 1 : 0,
+          transition: 'all 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+          pointerEvents: toast.visible ? 'auto' : 'none'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#D9E89D', color: '#1D3325', display: 'grid', placeItems: 'center', boxShadow: '0 0 15px rgba(217, 232, 157, 0.4)' }}>
+              <Icon name="bell" size={18} />
+            </div>
+            <strong style={{ fontSize: 16, color: '#ffffff', fontWeight: 700 }}>{toast.title}</strong>
+          </div>
+          <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.85)', lineHeight: 1.5, marginLeft: 48, fontWeight: 500 }}>
+            {toast.body}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

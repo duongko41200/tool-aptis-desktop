@@ -31,7 +31,8 @@ const NAV_ITEMS = [
   { icon: 'chat',       label: 'Nói',       path: '/speaking' },
   { icon: 'pencil',     label: 'Viết',      path: '/writing' },
   { icon: 'headphones', label: 'Nghe',      path: '/listening' },
-  { icon: 'sparkle',    label: 'Ai Chat',  path: '/rag-chat' },
+  { icon: 'sparkle',    label: 'Ai Chat',   path: '/rag-chat' },
+  { icon: 'calendar',   label: 'Lịch học',  path: '/calendar' },
 ];
 
 export default function TopBar() {

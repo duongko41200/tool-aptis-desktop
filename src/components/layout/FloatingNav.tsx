@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { icon: 'pencil',     label: 'Viết',      path: '/writing' },
   { icon: 'headphones', label: 'Nghe',      path: '/listening' },
   { icon: 'sparkle',    label: 'AI Chat',   path: '/rag-chat' },
+  { icon: 'calendar',   label: 'Lịch học',  path: '/calendar' },
 ];
 
 export default function FloatingNav({ align = 'left' }: { align?: 'left' | 'right' }) {

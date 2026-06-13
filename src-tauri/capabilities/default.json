@@ -8,6 +8,7 @@
     "sql:default",
     "store:default",
     "clipboard-manager:default",
-    "global-shortcut:default"
+    "global-shortcut:default",
+    "notification:default"
   ]
 }
