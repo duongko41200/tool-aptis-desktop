@@ -12,12 +12,6 @@ interface MatrixCell {
   supplementSentences: string[];
 }
 
-interface ActiveCell {
-  solutionId: string;
-  examId: string;
-  rect: { x: number; y: number; w: number; h: number };
-}
-
 function stripHtml(html: string): string {
   return html.replace(/<[^>]*>/g, ' ').replace(/\s{2,}/g, ' ').trim();
 }
@@ -153,7 +147,6 @@ function Dot({ applicability }: { applicability: 'direct' | 'with_modification' 
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function CrossExamMatrix({ results }: Props) {
   const [tooltip, setTooltip] = useState<TooltipData | null>(null);
-  const containerRef = useState<HTMLDivElement | null>(null);
   const [containerEl, setContainerEl] = useState<HTMLDivElement | null>(null);
 
   const { solutions, exams, cells } = buildMatrix(results);

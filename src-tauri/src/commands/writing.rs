@@ -196,6 +196,7 @@ pub struct WritingScoreHistoryEntry {
     pub letter_type: String,
     pub essay: String,
     pub result_json: String,
+    pub cross_exam_results_json: Option<String>,
     pub word_count: i64,
     pub saved_at: String,
 }
@@ -208,16 +209,18 @@ pub async fn save_writing_score(
     letter_type: String,
     essay: String,
     result_json: String,
+    cross_exam_results_json: Option<String>,
     word_count: i64,
     saved_at: String,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     db.execute(
-        "INSERT OR REPLACE INTO writing_score_history (id, exam_id, exam_title, letter_type, essay, result_json, word_count, saved_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-        params![id, exam_id, exam_title, letter_type, essay, result_json, word_count, saved_at],
-    ).map_err(|e| e.to_string())?;
+        "INSERT OR REPLACE INTO writing_score_history
+         (id, exam_id, exam_title, letter_type, essay, result_json, cross_exam_results_json, word_count, saved_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        params![id, exam_id, exam_title, letter_type, essay, result_json, cross_exam_results_json, word_count, saved_at],
+    ).map_err(|e| format!("DB insert failed: {}", e))?;
     Ok(())
 }
 
@@ -228,7 +231,7 @@ pub async fn get_writing_scores_by_exam(
 ) -> Result<Vec<WritingScoreHistoryEntry>, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     let mut stmt = db.prepare(
-        "SELECT id, exam_id, exam_title, letter_type, essay, result_json, word_count, saved_at
+        "SELECT id, exam_id, exam_title, letter_type, essay, result_json, cross_exam_results_json, word_count, saved_at
          FROM writing_score_history WHERE exam_id = ?1 ORDER BY saved_at DESC LIMIT 100",
     ).map_err(|e| e.to_string())?;
 
@@ -240,8 +243,9 @@ pub async fn get_writing_scores_by_exam(
             letter_type: row.get(3)?,
             essay: row.get(4)?,
             result_json: row.get(5)?,
-            word_count: row.get(6)?,
-            saved_at: row.get(7)?,
+            cross_exam_results_json: row.get(6)?,
+            word_count: row.get(7)?,
+            saved_at: row.get(8)?,
         })
     }).map_err(|e| e.to_string())?
     .filter_map(|r| r.ok())

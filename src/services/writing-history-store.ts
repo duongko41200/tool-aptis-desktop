@@ -1,27 +1,9 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { WritingScoreEntry } from '../types/writing-history';
-import type { ScoringResult } from '../types/writing-scorer';
-
-// ── localStorage fallback (dev / Tauri unavailable) ───────────────────
-const LS_KEY = 'writing_score_history';
-const MAX_LS_ENTRIES = 100;
-
-function lsReadAll(): WritingScoreEntry[] {
-  try { return JSON.parse(localStorage.getItem(LS_KEY) ?? '[]'); } catch { return []; }
-}
-function lsWriteAll(entries: WritingScoreEntry[]): void {
-  localStorage.setItem(LS_KEY, JSON.stringify(entries));
-}
-
-// ── Tauri helpers ──────────────────────────────────────────────────────
-function isTauri(): boolean {
-  return typeof (window as any).__TAURI_INTERNALS__ !== 'undefined';
-}
-
-// ── Public API ─────────────────────────────────────────────────────────
+import type { ScoringResult, CrossExamResult } from '../types/writing-scorer';
 
 export async function saveEntry(
-  params: Omit<WritingScoreEntry, 'id' | 'savedAt'> & { result: ScoringResult },
+  params: Omit<WritingScoreEntry, 'id' | 'savedAt'>,
 ): Promise<WritingScoreEntry> {
   const entry: WritingScoreEntry = {
     ...params,
@@ -29,62 +11,57 @@ export async function saveEntry(
     savedAt: new Date().toISOString(),
   };
 
-  if (isTauri()) {
-    try {
-      const wordCount = entry.essay.trim() ? entry.essay.trim().split(/\s+/).length : 0;
-      await invoke('save_writing_score', {
-        id: entry.id,
-        examId: entry.examId,
-        examTitle: entry.examTitle,
-        letterType: entry.letterType,
-        essay: entry.essay,
-        resultJson: JSON.stringify(entry.result),
-        wordCount,
-        savedAt: entry.savedAt,
-      });
-      return entry;
-    } catch (e) {
-      console.warn('Tauri save_writing_score failed, falling back to localStorage:', e);
-    }
+  const wordCount = entry.essay.trim() ? entry.essay.trim().split(/\s+/).length : 0;
+  const crossExamResultsJson = entry.crossExamResults
+    ? JSON.stringify(entry.crossExamResults)
+    : null;
+
+  if (!('__TAURI_INTERNALS__' in window)) {
+    throw new Error('Tính năng lưu lịch sử chỉ hoạt động trên ứng dụng Desktop. Vui lòng chạy ứng dụng qua lệnh "npm run app".');
   }
 
-  // localStorage fallback
-  const existing = lsReadAll();
-  lsWriteAll([entry, ...existing].slice(0, MAX_LS_ENTRIES));
+  await invoke('save_writing_score', {
+    id: entry.id,
+    examId: entry.examId,
+    examTitle: entry.examTitle,
+    letterType: entry.letterType,
+    essay: entry.essay,
+    resultJson: JSON.stringify(entry.result),
+    crossExamResultsJson,
+    wordCount,
+    savedAt: entry.savedAt,
+  });
+
   return entry;
 }
 
 export async function getByExam(examId: string): Promise<WritingScoreEntry[]> {
-  if (isTauri()) {
-    try {
-      const rows = await invoke<Array<{
-        id: string; exam_id: string; exam_title: string; letter_type: string;
-        essay: string; result_json: string; saved_at: string;
-      }>>('get_writing_scores_by_exam', { examId });
-      return rows.map(r => ({
-        id: r.id,
-        examId: r.exam_id,
-        examTitle: r.exam_title,
-        letterType: r.letter_type as 'formal' | 'informal',
-        essay: r.essay,
-        result: JSON.parse(r.result_json) as ScoringResult,
-        savedAt: r.saved_at,
-      }));
-    } catch (e) {
-      console.warn('Tauri get_writing_scores_by_exam failed, falling back to localStorage:', e);
-    }
+  if (!('__TAURI_INTERNALS__' in window)) {
+    return []; // Return empty history in web browser
   }
-  return lsReadAll().filter(e => e.examId === examId);
+
+  const rows = await invoke<Array<{
+    id: string; exam_id: string; exam_title: string; letter_type: string;
+    essay: string; result_json: string; cross_exam_results_json: string | null; saved_at: string;
+  }>>('get_writing_scores_by_exam', { examId });
+
+  return rows.map(r => ({
+    id: r.id,
+    examId: r.exam_id,
+    examTitle: r.exam_title,
+    letterType: r.letter_type as 'formal' | 'informal',
+    essay: r.essay,
+    result: JSON.parse(r.result_json) as ScoringResult,
+    crossExamResults: r.cross_exam_results_json
+      ? (JSON.parse(r.cross_exam_results_json) as CrossExamResult[])
+      : null,
+    savedAt: r.saved_at,
+  }));
 }
 
 export async function deleteEntry(id: string): Promise<void> {
-  if (isTauri()) {
-    try {
-      await invoke('delete_writing_score', { id });
-      return;
-    } catch (e) {
-      console.warn('Tauri delete_writing_score failed, falling back to localStorage:', e);
-    }
+  if (!('__TAURI_INTERNALS__' in window)) {
+    throw new Error('Tính năng này chỉ hoạt động trên ứng dụng Desktop. Vui lòng chạy ứng dụng qua lệnh "npm run app".');
   }
-  lsWriteAll(lsReadAll().filter(e => e.id !== id));
+  await invoke('delete_writing_score', { id });
 }

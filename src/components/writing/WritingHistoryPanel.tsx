@@ -7,8 +7,8 @@ import GrammarHighlight from './GrammarHighlight';
 import B2CriteriaResult from './B2CriteriaResult';
 import CrossExamResultPanel from './CrossExamResultPanel';
 import CrossExamDiagram from './CrossExamDiagram';
-import { getByExam, deleteEntry } from '../../services/writing-history-store';
 import WritingPdfPreviewModal from './WritingPdfPreviewModal';
+import { useWritingHistoryForExam } from '../../hooks/useWritingHistoryForExam';
 import type { WritingScoreEntry } from '../../types/writing-history';
 
 interface Props {
@@ -404,23 +404,19 @@ function EmptyDetail() {
 
 // ── Main ─────────────────────────────────────────────────────────────────────
 export default function WritingHistoryPanel({ examId, examTitle, onBack }: Props) {
-  const [entries, setEntries] = useState<WritingScoreEntry[]>([]);
+  const { entries, loading, remove } = useWritingHistoryForExam(examId);
   const [filter, setFilter] = useState<'all' | 'formal' | 'informal'>('all');
   const [selected, setSelected] = useState<WritingScoreEntry | null>(null);
   const [listCollapsed, setListCollapsed] = useState(false);
 
   useEffect(() => {
-    getByExam(examId).then(data => {
-      setEntries(data);
-      if (data.length > 0) setSelected(data[0]);
-    });
-  }, [examId]);
+    if (entries.length > 0 && !selected) setSelected(entries[0]);
+  }, [entries]);
 
   const handleDelete = async () => {
     if (!selected) return;
-    await deleteEntry(selected.id);
+    await remove(selected.id);
     const next = entries.filter(e => e.id !== selected.id);
-    setEntries(next);
     setSelected(next.length > 0 ? next[0] : null);
   };
 
@@ -562,7 +558,7 @@ export default function WritingHistoryPanel({ examId, examTitle, onBack }: Props
           {entries.length > 0 && (
             <div style={{ padding: '7px 12px', borderTop: '1px solid #d8e6b8', background: '#e8f0d0', flexShrink: 0, display: 'flex', justifyContent: 'space-between' }}>
               <span style={{ fontSize: 10, color: '#9aa38c', fontFamily: 'var(--font-mono)' }}>{filtered.length} / {entries.length} bài</span>
-              <span style={{ fontSize: 10, color: '#9aa38c' }}>Lưu trữ trên máy</span>
+              <span style={{ fontSize: 10, color: '#9aa38c' }}>{loading ? 'Đang tải…' : 'Lưu trữ trên máy'}</span>
             </div>
           )}
         </div>

@@ -12,7 +12,7 @@ import type { LetterType, ExamSummary } from '../../types/writing-scorer';
 import writingData from '../../public/data/exams/writing-part4.json';
 import { htmlToText } from '../../utils/html-to-text';
 import { saveSettings } from '../../services/tauriCommands';
-import { saveEntry } from '../../services/writing-history-store';
+import { useWritingHistoryForExam } from '../../hooks/useWritingHistoryForExam';
 import WritingPdfPreviewModal from './WritingPdfPreviewModal';
 import type { PdfExportParams } from '../../services/writing-pdf-export';
 
@@ -169,8 +169,10 @@ export default function WritingScorerPanel({
   const { status, result, crossExamResults, error, isStale, score, runCrossExamAnalysis, reset, markStale } =
     useWritingScorer() as ReturnType<typeof useWritingScorer> & { markStale: (e: string) => void };
 
+  const { save: saveHistory } = useWritingHistoryForExam(examId);
   const [apiKeyReady, setApiKeyReady] = useState(hasStoredApiKey);
   const [historySaved, setHistorySaved] = useState(false);
+  const [historySaveError, setHistorySaveError] = useState('');
   const [previewOpen, setPreviewOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'scoring' | 'cross-exam'>('scoring');
   const [activeErrorId, setActiveErrorId] = useState<string | null>(null);
@@ -202,10 +204,17 @@ export default function WritingScorerPanel({
 
   const handleSaveHistory = useCallback(async () => {
     if (!result) return;
-    await saveEntry({ essay, examId, examTitle, letterType, result, crossExamResults });
-    setHistorySaved(true);
-    setTimeout(() => setHistorySaved(false), 2500);
-  }, [result, crossExamResults, essay, examId, examTitle, letterType]);
+    setHistorySaveError('');
+    try {
+      await saveHistory({ essay, examId, examTitle, letterType, result, crossExamResults });
+      setHistorySaved(true);
+      setTimeout(() => setHistorySaved(false), 2500);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setHistorySaveError(msg);
+      console.error('[WritingScorerPanel] save failed:', err);
+    }
+  }, [result, crossExamResults, essay, examId, examTitle, letterType, saveHistory]);
 
   const pdfParams: PdfExportParams | null = result
     ? { essay, examId, examTitle, letterType, result, crossExamResults }
@@ -330,7 +339,7 @@ export default function WritingScorerPanel({
             </div>
 
             {/* Action buttons */}
-            <div style={{ display: 'flex', gap: 6 }}>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
               <button
                 className="btn btn-soft btn-sm"
                 onClick={handleSaveHistory}
@@ -349,6 +358,12 @@ export default function WritingScorerPanel({
                   </>
                 )}
               </button>
+              {historySaveError && (
+                <span style={{ fontSize: 11, color: 'var(--bad)', maxWidth: 200, lineHeight: 1.3 }}
+                  title={historySaveError}>
+                  Lưu thất bại
+                </span>
+              )}
               <button
                 className="btn btn-soft btn-sm"
                 onClick={() => setPreviewOpen(true)}
