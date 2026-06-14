@@ -10,6 +10,11 @@
     "tauri": "tauri",
     "app": "tauri dev",
     "build:app": "tauri build",
+    "build:win": "tauri build --target x86_64-pc-windows-msvc",
+    "build:mac": "tauri build --target aarch64-apple-darwin",
+    "build:linux": "tauri build --target x86_64-unknown-linux-gnu",
+    "build:release": "npx cross-env TAURI_SIGNING_PRIVATE_KEY=\"dW50cnVzdGVkIGNvbW1lbnQ6IHJzaWduIGVuY3J5cHRlZCBzZWNyZXQga2V5ClJXUlRZMEl5dHdLdXpvenBzRXpuNGkzeUlwQnpoaFFzazRZVU5LWGpXMFRHWm9lVTNvUUFBQkFBQUFBQUFBQUFBQUlBQUFBQTNMWktpVkhPRDM2QzQ0Q09nQXhYTW5qWUhjOGIya2E3T2IrY04rNWhxVGd2cjBCM0N4VTdiUGU0S0F6dzlTWkpOck44UVFmSFJTenI2ZGtxQWtmb3BMM0YvdVlYc0poQjIzRUJqVEhyQ2hGeEIzRmZiVjloNHc1QVY4YVViUVBQbnkzVWFaS0sxZG89Cg==\" TAURI_SIGNING_PRIVATE_KEY_PASSWORD=\"Aptis@2026!\" tauri build",
+    "gen:signer": "tauri signer generate",
     "backend": "cd backend && uvicorn main:app --reload --port 8080"
   },
   "devDependencies": {
@@ -38,8 +43,10 @@
     "@tauri-apps/plugin-notification": "^2.3.3",
     "@tauri-apps/plugin-opener": "^2.5.4",
     "@tauri-apps/plugin-positioner": "^2.3.2",
+    "@tauri-apps/plugin-process": "^2.3.1",
     "@tauri-apps/plugin-sql": "^2.4.0",
     "@tauri-apps/plugin-store": "^2.4.3",
+    "@tauri-apps/plugin-updater": "^2.10.1",
     "@xyflow/react": "^12.11.0",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",

@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
+import { RootState } from './store';
 import { useQueryClient } from '@tanstack/react-query';
 import { listen } from '@tauri-apps/api/event';
+import { check } from '@tauri-apps/plugin-updater';
+import { relaunch } from '@tauri-apps/plugin-process';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import bgGif from './public/img/1_1IDOLADBDduPo-kjXpeGAA.gif';
 import { setOnlineStatus } from './store/appSlice';
@@ -20,6 +23,7 @@ import VocabPage             from './pages/VocabPage';
 import ListeningPage         from './pages/ListeningPage';
 import RagChatPage           from './pages/RagChatPage';
 import CalendarPage          from './pages/CalendarPage';
+import ActivationPage        from './pages/ActivationPage';
 import Icon from './components/common/Icon';
 
 /* ── Rain particle effect ───────────────────────────── */
@@ -76,6 +80,7 @@ function AppShell() {
   const qc = useQueryClient();
   const { tweaks } = useTweaks();
   const navigate = useNavigate();
+  const isActivated = useSelector((state: RootState) => state.app.isActivated);
   const [toast, setToast] = useState<{title: string, body: string, visible: boolean} | null>(null);
 
   useEffect(() => {
@@ -88,6 +93,29 @@ function AppShell() {
       window.removeEventListener('offline', down);
     };
   }, [dispatch]);
+
+  // Check for Auto-Updates
+  useEffect(() => {
+    async function checkForUpdates() {
+      try {
+        const update = await check();
+        if (update) {
+          console.log(`[Auto-Update] Tìm thấy bản cập nhật mới: ${update.version}`);
+          setToast({
+            title: 'Đang cập nhật ứng dụng...',
+            body: `Đã tìm thấy bản cập nhật ${update.version}. Vui lòng không tắt máy, ứng dụng sẽ tự khởi động lại khi tải xong.`,
+            visible: true
+          });
+          
+          await update.downloadAndInstall();
+          await relaunch();
+        }
+      } catch (err) {
+        console.error('[Auto-Update] Lỗi khi kiểm tra cập nhật:', err);
+      }
+    }
+    checkForUpdates();
+  }, []);
 
   // Init Notifications Watcher & Autostart
   useEffect(() => {
@@ -150,21 +178,31 @@ function AppShell() {
       {tweaks.rain && <Rain />}
 
       {/* Routed screens */}
-      <TweaksPanel />
+      {isActivated && <TweaksPanel />}
       <div className="lofi-app-root">
         <Routes>
-          <Route path="/"                  element={<WelcomePage />} />
-          <Route path="/dashboard"         element={<DashboardPage />} />
-          <Route path="/speaking"          element={<SpeakingPage />} />
-          <Route path="/writing"           element={<WritingPage />} />
-          <Route path="/writing/feedback"  element={<WritingFeedbackPage />} />
-          <Route path="/vocab"             element={<VocabPage />} />
-          <Route path="/listening"        element={<ListeningPage />} />
-          <Route path="/rag-chat"           element={<RagChatPage />} />
-          <Route path="/calendar"           element={<CalendarPage />} />
-          <Route path="/tools"             element={<Navigate to="/tools/vocabulary" replace />} />
-          <Route path="/tools/:tab"        element={<ToolsPage />} />
-          <Route path="*"                  element={<Navigate to="/" replace />} />
+          {!isActivated ? (
+            <>
+              <Route path="/activation" element={<ActivationPage />} />
+              <Route path="*" element={<Navigate to="/activation" replace />} />
+            </>
+          ) : (
+            <>
+              <Route path="/"                  element={<WelcomePage />} />
+              <Route path="/dashboard"         element={<DashboardPage />} />
+              <Route path="/speaking"          element={<SpeakingPage />} />
+              <Route path="/writing"           element={<WritingPage />} />
+              <Route path="/writing/feedback"  element={<WritingFeedbackPage />} />
+              <Route path="/vocab"             element={<VocabPage />} />
+              <Route path="/listening"        element={<ListeningPage />} />
+              <Route path="/rag-chat"           element={<RagChatPage />} />
+              <Route path="/calendar"           element={<CalendarPage />} />
+              <Route path="/tools"             element={<Navigate to="/tools/vocabulary" replace />} />
+              <Route path="/tools/:tab"        element={<ToolsPage />} />
+              <Route path="/activation"        element={<Navigate to="/" replace />} />
+              <Route path="*"                  element={<Navigate to="/" replace />} />
+            </>
+          )}
         </Routes>
       </div>
 

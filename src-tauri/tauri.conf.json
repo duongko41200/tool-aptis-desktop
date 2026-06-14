@@ -28,6 +28,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -35,5 +36,13 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://raw.githubusercontent.com/duongMyColor/app-ATP-Releases/refs/heads/main/updater.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEExMUE5QzkzNzI4MzM5Q0EKUldUS09ZTnlrNXdhb1plQVd3QzA0M2UxVHpodkVtVmJtWjdmdEpTV1JMYlZDOXJ1Wlg1d0Rkek8K"
+    }
   }
 }
