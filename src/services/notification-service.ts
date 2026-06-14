@@ -101,6 +101,7 @@ async function fireNotification(title: string, body: string) {
       sendNotification({
         title: title,
         body: body,
+        sound: 'default'
       });
     }
   } catch (err) {

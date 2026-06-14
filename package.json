@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "app": "tauri dev",
+    "build:app": "tauri build",
     "backend": "cd backend && uvicorn main:app --reload --port 8080"
   },
   "devDependencies": {
