@@ -112,6 +112,12 @@ function AppShell() {
         }
       } catch (err) {
         console.error('[Auto-Update] Lỗi khi kiểm tra cập nhật:', err);
+        setToast({
+          title: 'Lỗi cập nhật',
+          body: 'Không thể cài đặt bản cập nhật. Vui lòng kiểm tra lại đường truyền hoặc link tải.',
+          visible: true
+        });
+        setTimeout(() => setToast(null), 5000);
       }
     }
     checkForUpdates();

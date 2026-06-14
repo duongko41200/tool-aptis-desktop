@@ -10,6 +10,7 @@ export interface CalendarEvent {
   enableReminder?: boolean;
   notified15m?: boolean;
   notifiedStart?: boolean;
+  isCompleted?: boolean;
 }
 
 const STORAGE_KEY = 'aptis_calendar_events';

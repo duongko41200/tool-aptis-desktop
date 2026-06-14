@@ -8,6 +8,7 @@ import { CalendarStore, CalendarEvent } from '../services/calendar-store';
 import Icon from '../components/common/Icon';
 import TopBar from '../components/layout/TopBar';
 import FloatingNav from '../components/layout/FloatingNav';
+import AiScheduleModal from '../components/calendar/AiScheduleModal';
 import { useNavigate } from 'react-router-dom';
 import { isPermissionGranted, sendNotification, requestPermission } from '@tauri-apps/plugin-notification';
 
@@ -16,6 +17,8 @@ export default function CalendarPage() {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<Partial<CalendarEvent> | null>(null);
+  const [dayDetails, setDayDetails] = useState<{ date: Date, events: any[] } | null>(null);
+  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
   const calendarRef = useRef<FullCalendar>(null);
 
   useEffect(() => {
@@ -31,12 +34,27 @@ export default function CalendarPage() {
       backgroundColor: 'var(--accent)',
       textColor: 'var(--accent-ink)',
       enableReminder: true,
+      isCompleted: false,
     });
     setIsModalOpen(true);
   };
 
   const handleEventClick = (arg: EventClickArg) => {
     const e = arg.event;
+    
+    // Nếu bấm vào checkbox
+    if ((arg.jsEvent.target as HTMLElement).closest('.calendar-checkbox')) {
+      const isCompleted = e.extendedProps?.isCompleted ?? false;
+      const allEvents = CalendarStore.getEvents();
+      const storeEvent = allEvents.find(ev => ev.id === e.id);
+      if (storeEvent) {
+        storeEvent.isCompleted = !isCompleted;
+        CalendarStore.updateEvent(storeEvent);
+        setEvents(CalendarStore.getEvents());
+      }
+      return;
+    }
+
     setEditingEvent({
       id: e.id,
       title: e.title,
@@ -46,6 +64,7 @@ export default function CalendarPage() {
       backgroundColor: e.backgroundColor,
       textColor: e.textColor,
       enableReminder: e.extendedProps?.enableReminder ?? true,
+      isCompleted: e.extendedProps?.isCompleted ?? false,
     });
     setIsModalOpen(true);
   };
@@ -61,6 +80,7 @@ export default function CalendarPage() {
       backgroundColor: e.backgroundColor,
       textColor: e.textColor,
       enableReminder: e.extendedProps?.enableReminder ?? true,
+      isCompleted: e.extendedProps?.isCompleted ?? false,
     };
     CalendarStore.updateEvent(updatedEvent);
     setEvents(CalendarStore.getEvents());
@@ -127,6 +147,11 @@ export default function CalendarPage() {
           --fc-page-bg-color: transparent;
           --fc-neutral-bg-color: transparent;
           font-family: inherit;
+        .fc-popover {
+          visibility: hidden !important;
+          opacity: 0 !important;
+          pointer-events: none !important;
+          z-index: -1 !important;
         }
         .fc-theme-standard td, .fc-theme-standard th {
           border-color: var(--fc-border-color);
@@ -155,19 +180,31 @@ export default function CalendarPage() {
         .fc-closeBtn-button:hover {
           background-color: rgba(255, 100, 100, 0.2) !important;
         }
+        .fc-aiScheduleBtn-button {
+          background: linear-gradient(135deg, var(--accent), #a8d4a0) !important;
+          color: var(--accent-ink) !important;
+          border: none !important;
+          font-weight: 700 !important;
+          box-shadow: var(--sh-sm) !important;
+        }
+        .fc-aiScheduleBtn-button:hover {
+          filter: brightness(1.05) !important;
+          transform: translateY(-1px);
+          box-shadow: var(--sh-md) !important;
+        }
         .fc-event {
           border-radius: 6px;
-          padding: 2px 4px;
-          font-size: 13px;
-          font-weight: 600;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+          padding: 0;
+          margin-bottom: 4px;
+          box-shadow: none;
           transition: transform 0.2s;
           cursor: pointer;
-          border: none;
+          background: transparent !important;
+          border: none !important;
         }
         .fc-event:hover {
-          transform: translateY(-1px);
-          filter: brightness(0.95);
+          transform: translateX(2px);
+          z-index: 5;
         }
         .fc-col-header-cell-cushion {
           color: var(--ink-2);
@@ -202,11 +239,15 @@ export default function CalendarPage() {
               plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
               initialView="dayGridMonth"
               headerToolbar={{
-                left: 'prev,next today',
+                left: 'prev,next today aiScheduleBtn',
                 center: 'title',
                 right: 'testBtn dayGridMonth,timeGridWeek,timeGridDay closeBtn'
               }}
               customButtons={{
+                aiScheduleBtn: {
+                  text: '✨ AI Tạo Lịch',
+                  click: () => setIsAiModalOpen(true),
+                },
                 closeBtn: {
                   text: '✕ Đóng',
                   click: () => navigate(-1)
@@ -247,6 +288,74 @@ export default function CalendarPage() {
               selectable={true}
               selectMirror={true}
               dayMaxEvents={true}
+              eventContent={(arg) => {
+                const isCompleted = arg.event.extendedProps?.isCompleted;
+                const bgColor = arg.event.backgroundColor || 'var(--accent)';
+                const txtColor = arg.event.textColor || 'var(--accent-ink)';
+
+                return (
+                  <div 
+                    className="calendar-evt-inner"
+                    style={{ 
+                      display: 'flex', alignItems: 'center', width: '100%', height: '100%', 
+                      padding: '2px 4px',
+                      gap: 6,
+                      boxSizing: 'border-box'
+                    }}
+                  >
+                    {/* Checkbox Tròn - Tách biệt hoàn toàn (Split Design) */}
+                    <div 
+                      className="calendar-checkbox"
+                      title={isCompleted ? "Đánh dấu chưa xong" : "Đánh dấu hoàn thành"}
+                      style={{
+                        width: 16, height: 16, 
+                        backgroundColor: isCompleted ? bgColor : '#ffffff',
+                        border: isCompleted ? 'none' : '2px solid rgba(0,0,0,0.15)',
+                        borderRadius: '50%',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                        flexShrink: 0,
+                        cursor: 'pointer',
+                        boxShadow: isCompleted ? '0 2px 4px rgba(0,0,0,0.15)' : '0 1px 2px rgba(0,0,0,0.05)',
+                        transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                        color: txtColor
+                      }}
+                    >
+                      <div style={{ display: 'flex', transform: isCompleted ? 'scale(1)' : 'scale(0.5)', opacity: isCompleted ? 1 : 0, transition: 'all 0.2s' }}>
+                        <Icon name="check" size={10} />
+                      </div>
+                    </div>
+
+                    {/* Khung màu Sự kiện (Bubble) */}
+                    <div style={{ 
+                      background: bgColor,
+                      color: txtColor,
+                      borderRadius: 6,
+                      padding: '3px 8px',
+                      opacity: isCompleted ? 0.5 : 1,
+                      textDecoration: isCompleted ? 'line-through' : 'none', 
+                      whiteSpace: 'nowrap', 
+                      textOverflow: 'ellipsis', 
+                      overflow: 'hidden',
+                      flex: 1,
+                      fontSize: 12.5,
+                      fontWeight: 600,
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+                      transition: 'all 0.3s ease'
+                    }}>
+                      {arg.timeText && <span style={{ fontWeight: 800, marginRight: 6 }}>{arg.timeText}</span>}
+                      {arg.event.title}
+                    </div>
+                  </div>
+                );
+              }}
+              moreLinkClick={(arg) => {
+                arg.jsEvent.preventDefault();
+                setDayDetails({
+                  date: arg.date,
+                  events: arg.allSegs.map(seg => seg.event)
+                });
+                return 'popover'; // We hide .fc-popover via CSS so it won't be visible
+              }}
               dateClick={handleDateClick}
               eventClick={handleEventClick}
               eventDrop={handleEventDrop}
@@ -393,6 +502,172 @@ export default function CalendarPage() {
                 {editingEvent.id ? 'Cập nhật' : 'Tạo lịch'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* AI Schedule Modal */}
+      {isAiModalOpen && (
+        <AiScheduleModal
+          onClose={() => setIsAiModalOpen(false)}
+          onApplied={() => setEvents(CalendarStore.getEvents())}
+        />
+      )}
+
+      {/* Day Details Modal (Custom moreLinkClick) */}
+      {dayDetails && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'grid', placeItems: 'center', padding: 24 }}>
+          <div className="glass" style={{ position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.4)', backdropFilter: 'blur(8px)' }} onClick={() => setDayDetails(null)} />
+          
+          <div className="glass rise" style={{ position: 'relative', width: '100%', maxWidth: 450, maxHeight: '80vh', padding: 32, borderRadius: 'var(--r-xl)', background: 'var(--glass-bg)', boxShadow: 'var(--sh-lg)', border: '1px solid var(--glass-edge)', display: 'flex', flexDirection: 'column', gap: 24 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink-2)', textTransform: 'uppercase', letterSpacing: 1 }}>Chi tiết lịch học</div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--ink)', marginTop: 4 }}>
+                  Ngày {dayDetails.date.toLocaleDateString('vi-VN')}
+                </div>
+              </div>
+              <button className="iconbtn" onClick={() => setDayDetails(null)}>
+                <Icon name="close" size={20} />
+              </button>
+            </div>
+
+            <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12, paddingRight: 8 }}>
+              {dayDetails.events.map((e, idx) => {
+                const isCompleted = e.extendedProps?.isCompleted ?? false;
+                const bgColor = e.backgroundColor || 'var(--accent)';
+                const txtColor = e.textColor || 'var(--accent-ink)';
+                
+                return (
+                  <div 
+                    key={idx}
+                    className="modal-evt-item"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 16,
+                      padding: '8px 4px',
+                      transition: 'all 0.3s ease',
+                    }}
+                    onClick={() => {
+                      setEditingEvent({
+                        id: e.id,
+                        title: e.title,
+                        start: e.startStr,
+                        end: e.endStr || e.startStr,
+                        allDay: e.allDay,
+                        backgroundColor: e.backgroundColor,
+                        textColor: e.textColor,
+                        enableReminder: e.extendedProps?.enableReminder ?? true,
+                        isCompleted: isCompleted,
+                      });
+                      setIsModalOpen(true);
+                      setDayDetails(null);
+                    }}
+                  >
+                    {/* Nút Checkbox Tròn Rõ Ràng */}
+                    <button
+                      className="modal-checkbox calendar-checkbox"
+                      onClick={(ev) => {
+                        ev.stopPropagation();
+                        const allEvents = CalendarStore.getEvents();
+                        const storeEvent = allEvents.find(ev => ev.id === e.id);
+                        if (storeEvent) {
+                          storeEvent.isCompleted = !isCompleted;
+                          CalendarStore.updateEvent(storeEvent);
+                          setEvents(CalendarStore.getEvents());
+                          setDayDetails(prev => {
+                            if (!prev) return null;
+                            const newEvents = prev.events.map(pev => {
+                              if (pev.id === e.id) {
+                                pev.setExtendedProp('isCompleted', !isCompleted);
+                              }
+                              return pev;
+                            });
+                            return { ...prev, events: newEvents };
+                          });
+                        }
+                      }}
+                      title={isCompleted ? "Hủy hoàn thành" : "Hoàn thành"}
+                      style={{
+                        width: 28, height: 28, borderRadius: '50%', 
+                        backgroundColor: isCompleted ? bgColor : '#ffffff',
+                        border: isCompleted ? 'none' : '2px solid rgba(0,0,0,0.15)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        cursor: 'pointer', padding: 0, flexShrink: 0,
+                        boxShadow: isCompleted ? '0 4px 8px rgba(0,0,0,0.15)' : '0 2px 4px rgba(0,0,0,0.05)',
+                        transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                        color: txtColor
+                      }}
+                    >
+                      <div style={{ display: 'flex', transform: isCompleted ? 'scale(1)' : 'scale(0.5)', opacity: isCompleted ? 1 : 0, transition: 'all 0.2s' }}>
+                        <Icon name="check" size={16} />
+                      </div>
+                    </button>
+
+                    {/* Bubble Khung Màu Sự Kiện */}
+                    <div style={{ 
+                      flex: 1, display: 'flex', flexDirection: 'column', gap: 4,
+                      background: bgColor,
+                      color: txtColor,
+                      padding: '14px 20px',
+                      borderRadius: 'var(--r-md)',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                      opacity: isCompleted ? 0.5 : 1,
+                      cursor: 'pointer',
+                      transition: 'all 0.3s ease'
+                    }}>
+                      <div style={{ fontSize: 16, fontWeight: 700, textDecoration: isCompleted ? 'line-through' : 'none' }}>
+                        {e.title}
+                      </div>
+                      {!e.allDay && e.start && (
+                        <div style={{ fontSize: 13, opacity: 0.9, display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <Icon name="clock" size={14} />
+                          {new Date(e.start).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                          {e.end && ` - ${new Date(e.end).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`}
+                        </div>
+                      )}
+                      {e.allDay && (
+                        <div style={{ fontSize: 13, opacity: 0.9, display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <Icon name="sun" size={14} />
+                          Cả ngày
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+              
+              {dayDetails.events.length === 0 && (
+                <div style={{ padding: 24, textAlign: 'center', color: 'var(--ink-2)', fontSize: 14 }}>
+                  Không có lịch học nào
+                </div>
+              )}
+            </div>
+
+            <button 
+              onClick={() => {
+                // Mở modal thêm mới sự kiện cho ngày này
+                const dateStr = dayDetails.date.toISOString().split('T')[0];
+                setEditingEvent({
+                  title: '',
+                  start: dateStr,
+                  end: dateStr,
+                  allDay: true,
+                  backgroundColor: 'var(--accent)',
+                  textColor: 'var(--accent-ink)',
+                  enableReminder: true,
+                  isCompleted: false,
+                });
+                setIsModalOpen(true);
+                setDayDetails(null);
+              }}
+              style={{ width: '100%', padding: '14px', background: 'transparent', color: 'var(--ink)', border: '2px dashed var(--glass-edge)', borderRadius: 'var(--r-md)', fontWeight: 700, cursor: 'pointer', fontSize: 15, transition: 'all 0.2s' }}
+              onMouseEnter={(ev) => ev.currentTarget.style.borderColor = 'var(--accent)'}
+              onMouseLeave={(ev) => ev.currentTarget.style.borderColor = 'var(--glass-edge)'}
+            >
+              + Thêm lịch học mới
+            </button>
           </div>
         </div>
       )}
