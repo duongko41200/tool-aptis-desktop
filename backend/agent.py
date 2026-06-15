@@ -169,14 +169,17 @@ def format_docs(docs: list[Document], query: str = "") -> str:
     return "\n\n---\n\n".join(parts)
 
 
-def build_chain(model: str = LLM_MODEL, openai_key: str | None = None):
-    if openai_key:
+def build_chain(model: str = LLM_MODEL, openai_key: str | None = None, gemini_key: str | None = None):
+    if gemini_key:
+        from langchain_google_genai import ChatGoogleGenerativeAI
+        llm = ChatGoogleGenerativeAI(google_api_key=gemini_key, model=model, temperature=0)
+    elif openai_key:
         from langchain_openai import ChatOpenAI
         llm = ChatOpenAI(api_key=openai_key, model=model, temperature=0)
     else:
         llm = ChatOllama(model=model, base_url=OLLAMA_URL)
 
-    retriever = get_retriever(openai_key=openai_key)
+    retriever = get_retriever(openai_key=openai_key if not gemini_key else None)
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", SYSTEM_PROMPT),

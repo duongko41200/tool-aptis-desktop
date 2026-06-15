@@ -612,6 +612,9 @@ export default function RagChatPage() {
   const [openaiKey, setOpenaiKey]   = useState<string | undefined>(
     localStorage.getItem('rag_openai_key') ?? undefined
   );
+  const [geminiKey, setGeminiKey]   = useState<string>(
+    localStorage.getItem('rag_gemini_key') ?? ''
+  );
   const bottomRef   = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -678,6 +681,8 @@ export default function RagChatPage() {
   useEffect(() => {
     const savedKey = localStorage.getItem('rag_openai_key');
     if (savedKey) { setSetupDone(true); setOpenaiKey(savedKey); }
+    const savedGeminiKey = localStorage.getItem('rag_gemini_key');
+    if (savedGeminiKey) setGeminiKey(savedGeminiKey);
 
     // Spawn backend, sau đó poll cho đến khi ready (tối đa 12s)
     (async () => {
@@ -734,6 +739,7 @@ export default function RagChatPage() {
           ));
         },
         abortRef.current.signal,
+        geminiKey || undefined,
       );
       setBackendOk(true);
     } catch (e: unknown) {
@@ -1148,9 +1154,39 @@ export default function RagChatPage() {
                 {/* LLM */}
                 <div>
                   <div className="label-cap" style={{ color: 'rgba(255,255,255,0.4)', marginBottom: 10 }}>Mô hình ngôn ngữ</div>
-                  <ModelOption val="qwen3:4b"      label="Qwen3:4b"      desc="Ollama · offline · context 32K"          free active={model === 'qwen3:4b'}      onClick={() => setModel('qwen3:4b')} />
-                  <ModelOption val="gpt-4o"        label="GPT-4o"        desc="OpenAI API · cần API key"                free={false} active={model === 'gpt-4o'}        onClick={() => setModel('gpt-4o')} />
-                  <ModelOption val="claude-sonnet" label="Claude Sonnet" desc="Anthropic API · cần API key"             free={false} active={model === 'claude-sonnet'} onClick={() => setModel('claude-sonnet')} />
+                  <ModelOption val="qwen3:4b"           label="Qwen3:4b"           desc="Ollama · offline · context 32K"     free   active={model === 'qwen3:4b'}           onClick={() => setModel('qwen3:4b')} />
+                  <ModelOption val="gemini-2.5-flash"   label="Gemini 2.5 Flash"   desc="Google AI · cần Gemini API key"    free={false} active={model === 'gemini-2.5-flash'}   onClick={() => setModel('gemini-2.5-flash')} />
+                  <ModelOption val="gemini-2.0-flash"   label="Gemini 2.0 Flash"   desc="Google AI · cần Gemini API key"    free={false} active={model === 'gemini-2.0-flash'}   onClick={() => setModel('gemini-2.0-flash')} />
+                  <ModelOption val="gpt-4o"             label="GPT-4o"             desc="OpenAI API · cần API key"          free={false} active={model === 'gpt-4o'}             onClick={() => setModel('gpt-4o')} />
+                  <ModelOption val="claude-sonnet"      label="Claude Sonnet"      desc="Anthropic API · cần API key"       free={false} active={model === 'claude-sonnet'}      onClick={() => setModel('claude-sonnet')} />
+
+                  {/* Gemini API key input */}
+                  {(model === 'gemini-2.5-flash' || model === 'gemini-2.0-flash') && (
+                    <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 5 }}>
+                      <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', fontWeight: 600 }}>Gemini API Key</div>
+                      <input
+                        type="password"
+                        value={geminiKey}
+                        onChange={e => {
+                          setGeminiKey(e.target.value);
+                          localStorage.setItem('rag_gemini_key', e.target.value);
+                        }}
+                        placeholder="AIza..."
+                        style={{
+                          padding: '8px 10px', borderRadius: 'var(--r-sm)',
+                          background: 'rgba(255,255,255,0.08)',
+                          border: `1px solid ${geminiKey ? 'rgba(217,232,157,0.35)' : 'rgba(255,255,255,0.18)'}`,
+                          color: '#fff', fontSize: 12, outline: 'none',
+                          fontFamily: 'var(--font-mono)',
+                        }}
+                      />
+                      {!geminiKey && (
+                        <div style={{ fontSize: 10.5, color: 'rgba(217,138,106,0.85)' }}>
+                          Cần Gemini API key — lấy tại aistudio.google.com
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Embedding */}

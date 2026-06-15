@@ -37,6 +37,7 @@ class ChatRequest(BaseModel):
     history: list[dict] = []
     model: str = "qwen3:4b"
     openai_key: str | None = None   # nếu dùng OpenAI thay Ollama
+    gemini_key: str | None = None   # nếu dùng Gemini thay Ollama
 
 
 class IngestRequest(BaseModel):
@@ -179,7 +180,7 @@ async def health():
 @app.post("/chat")
 async def chat(req: ChatRequest):
     try:
-        chain, retriever = build_chain(req.model, openai_key=req.openai_key)
+        chain, retriever = build_chain(req.model, openai_key=req.openai_key, gemini_key=req.gemini_key)
         docs    = await asyncio.to_thread(retriever.invoke, req.question)
         sources = [
             {
@@ -202,7 +203,7 @@ async def chat_stream(req: ChatRequest):
 
     async def generate():
         try:
-            chain, retriever = build_chain(req.model, openai_key=req.openai_key)
+            chain, retriever = build_chain(req.model, openai_key=req.openai_key, gemini_key=req.gemini_key)
 
             # Lấy context trước
             docs = await asyncio.to_thread(retriever.invoke, req.question)
@@ -218,11 +219,10 @@ async def chat_stream(req: ChatRequest):
             yield f"data: {json.dumps({'type': 'sources', 'sources': sources})}\n\n"
 
             # Stream từng token từ LLM
-            llm = chain.steps[-2] if hasattr(chain, 'steps') else None  # type: ignore
-            from langchain_ollama import ChatOllama as _ChatOllama
-            from langchain_openai import ChatOpenAI as _ChatOpenAI
-
-            if req.openai_key:
+            if req.gemini_key:
+                from langchain_google_genai import ChatGoogleGenerativeAI
+                streaming_llm = ChatGoogleGenerativeAI(google_api_key=req.gemini_key, model=req.model, temperature=0, streaming=True)
+            elif req.openai_key:
                 from langchain_openai import ChatOpenAI
                 streaming_llm = ChatOpenAI(api_key=req.openai_key, model=req.model, temperature=0, streaming=True)
             else:

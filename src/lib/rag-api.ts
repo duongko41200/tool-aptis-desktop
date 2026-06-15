@@ -163,11 +163,12 @@ export async function ragChat(
   history: { role: string; content: string }[],
   model = 'llama3:latest',
   openaiKey?: string,
+  geminiKey?: string,
 ): Promise<ChatResponse> {
   const r = await fetch(`${BASE}/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ question, history, model, openai_key: openaiKey ?? null }),
+    body: JSON.stringify({ question, history, model, openai_key: openaiKey ?? null, gemini_key: geminiKey ?? null }),
     signal: AbortSignal.timeout(180_000),
   });
   if (!r.ok) {
@@ -185,11 +186,12 @@ export async function ragChatStream(
   onToken: (token: string) => void,
   onSources: (sources: RagSource[]) => void,
   signal?: AbortSignal,
+  geminiKey?: string,
 ): Promise<void> {
   const r = await fetch(`${BASE}/chat/stream`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ question, history: [], model, openai_key: openaiKey ?? null }),
+    body: JSON.stringify({ question, history: [], model, openai_key: openaiKey ?? null, gemini_key: geminiKey ?? null }),
     signal,
   });
   if (!r.ok) {
