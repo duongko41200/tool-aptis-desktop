@@ -181,34 +181,31 @@ async def _execute_flow(
     nodes: list[dict],
     edges: list[dict],
     cookies: str | None = None,
+    gemini_key: str | None = None,
+    openai_key: str | None = None,
 ) -> list[Document]:
     """
     Chạy automation workflow bằng Playwright.
 
     Luồng thực thi:
-        1. Build DAG từ nodes + edges
+        1. Build DAG từ nodes + edges (lưu sourceHandle)
         2. Tìm node Start → navigate tới URL
-        3. Duyệt tuần tự theo edges:
-           - click/dbl_click/hover  → click element, đợi, capture diff nội dung
-           - extract_text/html      → capture toàn bộ nội dung trang
-           - open_url               → navigate sang URL mới
-           - type_text              → điền text vào input
-           - press_key              → nhấn phím
-           - wait_*                 → đợi timeout / element / network idle
-           - save_chroma / end      → dừng vòng lặp
+        3. Duyệt tuần tự theo edges với hỗ trợ biến, điều kiện, vòng lặp
         4. Tích luỹ các Document với nội dung đã diff (không trùng)
         5. Trả về list Document để chunk + embed + lưu ChromaDB
     """
+    import re as _re
     from playwright.async_api import async_playwright
 
-    # Build adjacency list (DAG)
+    # Build adjacency list (DAG) — lưu edge info kèm sourceHandle
     node_map = {n["id"]: n for n in nodes}
-    graph: dict[str, list[str]] = {n["id"]: [] for n in nodes}
+    graph: dict[str, list[dict]] = {n["id"]: [] for n in nodes}
     for edge in edges:
-        src = edge["source"]
-        tgt = edge["target"]
-        if src in graph:
-            graph[src].append(tgt)
+        if edge["source"] in graph:
+            graph[edge["source"]].append({
+                "target": edge["target"],
+                "sourceHandle": edge.get("sourceHandle"),
+            })
 
     # Tìm node Start
     start = next((n for n in nodes if n["data"].get("type") == "start"), None)
@@ -233,6 +230,29 @@ async def _execute_flow(
         old_content = await page.inner_text("body")
         seen = set(_split_sentences(old_content))
 
+        # Helpers
+        vars_store: dict[str, str] = {}
+        visit_counts: dict[str, int] = {}
+
+        def resolve(s: str) -> str:
+            return _re.sub(r'\{\{(\w+)\}\}', lambda m: vars_store.get(m.group(1), m.group(0)), str(s or ""))
+
+        async def eval_condition(nd: dict) -> bool:
+            ctype    = nd.get("condition_type", "element_exists")
+            selector = resolve(nd.get("selector", ""))
+            expected = resolve(nd.get("expected", ""))
+            var_name = nd.get("var_name", "")
+            if ctype == "element_exists":
+                return bool(selector) and await page.locator(selector).count() > 0
+            elif ctype == "page_contains":
+                content = await page.inner_text("body")
+                return bool(expected) and expected.lower() in content.lower()
+            elif ctype == "var_equals":
+                return vars_store.get(var_name, "") == expected
+            elif ctype == "url_contains":
+                return bool(expected) and expected in page.url
+            return False
+
         current_id: str | None = start["id"]
 
         while current_id:
@@ -244,13 +264,18 @@ async def _execute_flow(
             nd    = node["data"]
             cont_on_err = bool(nd.get("continue_on_error", True))
 
+            # Cập nhật visit count và tính next edges
+            visit_counts[current_id] = visit_counts.get(current_id, 0) + 1
+            next_edges = graph.get(current_id, [])
+            next_id = next_edges[0]["target"] if next_edges else None
+
             try:
                 # ── Browser ──────────────────────────────────
                 if ntype == "start":
                     pass  # đã navigate ở trên
 
                 elif ntype == "open_url":
-                    target = nd.get("url") or url
+                    target = resolve(nd.get("url") or url)
                     await page.goto(target, wait_until="networkidle", timeout=30_000)
                     old_content = await page.inner_text("body")
                     seen = set(_split_sentences(old_content))
@@ -266,7 +291,7 @@ async def _execute_flow(
 
                 # ── Interaction ───────────────────────────────
                 elif ntype in ("click", "dbl_click", "hover"):
-                    selector        = nd.get("selector", "")
+                    selector        = resolve(nd.get("selector", ""))
                     wait_ms         = int(nd.get("wait_ms", 800))
                     repeat          = int(nd.get("repeat", 1))
                     capture_content = bool(nd.get("capture_content", True))
@@ -300,13 +325,13 @@ async def _execute_flow(
                                     seen.update(diff)
 
                 elif ntype == "type_text":
-                    selector = nd.get("selector", "")
-                    text     = nd.get("text", "")
+                    selector = resolve(nd.get("selector", ""))
+                    text     = resolve(nd.get("text", ""))
                     if selector and text:
                         await page.locator(selector).first.fill(text)
 
                 elif ntype == "press_key":
-                    key = nd.get("key", "Enter")
+                    key = resolve(nd.get("key", "Enter"))
                     await page.keyboard.press(key)
                     await page.wait_for_timeout(int(nd.get("wait_ms", 500)))
 
@@ -315,7 +340,7 @@ async def _execute_flow(
                     await page.wait_for_timeout(int(nd.get("wait_ms", 1_000)))
 
                 elif ntype == "wait_element":
-                    sel = nd.get("selector", "")
+                    sel = resolve(nd.get("selector", ""))
                     if sel:
                         await page.wait_for_selector(sel, timeout=10_000)
 
@@ -324,11 +349,15 @@ async def _execute_flow(
 
                 # ── Data ──────────────────────────────────────
                 elif ntype in ("extract_text", "extract_html"):
-                    content = (
-                        await page.inner_text("body")
-                        if ntype == "extract_text"
-                        else await page.content()
-                    )
+                    sel = resolve(nd.get("selector", ""))
+                    if sel:
+                        el = page.locator(sel).first
+                        if await el.count() > 0:
+                            content = await el.inner_text() if ntype == "extract_text" else await el.inner_html()
+                        else:
+                            content = ""
+                    else:
+                        content = await page.inner_text("body") if ntype == "extract_text" else await page.content()
                     if content.strip():
                         collected.append(Document(
                             page_content=content,
@@ -338,6 +367,78 @@ async def _execute_flow(
                                 "node": nd.get("label", ntype),
                             },
                         ))
+
+                elif ntype == "screenshot":
+                    content = await page.inner_text("body")
+                    if content.strip():
+                        collected.append(Document(
+                            page_content=content,
+                            metadata={
+                                "source": page.url,
+                                "title": f"[Screenshot] {await page.title() or page.url}",
+                                "node": nd.get("label", ntype),
+                            },
+                        ))
+
+                elif ntype == "save_var":
+                    var_name = nd.get("var_name", "")
+                    selector = resolve(nd.get("selector", ""))
+                    attr     = nd.get("attribute", "")
+                    pattern  = nd.get("regex", "")
+                    if var_name:
+                        if selector:
+                            el = page.locator(selector).first
+                            if await el.count() > 0:
+                                val = await el.get_attribute(attr) if attr else await el.inner_text()
+                            else:
+                                val = ""
+                        else:
+                            val = await page.inner_text("body")
+                        if pattern:
+                            m = _re.search(pattern, val or "")
+                            val = m.group(1) if m and m.groups() else (m.group(0) if m else "")
+                        vars_store[var_name] = (val or "").strip()
+
+                elif ntype == "condition":
+                    result      = await eval_condition(nd)
+                    true_edges  = [e for e in next_edges if e.get("sourceHandle") == "true"]
+                    false_edges = [e for e in next_edges if e.get("sourceHandle") == "false"]
+                    if not true_edges and not false_edges:
+                        true_edges  = next_edges[:1]
+                        false_edges = next_edges[1:2]
+                    chosen     = true_edges if result else false_edges
+                    current_id = chosen[0]["target"] if chosen else None
+                    continue
+
+                elif ntype == "loop":
+                    repeat     = int(nd.get("repeat", 1))
+                    body_edges = [e for e in next_edges if e.get("sourceHandle") == "body"]
+                    exit_edges = [e for e in next_edges if e.get("sourceHandle") == "exit"]
+                    if not body_edges and not exit_edges:
+                        body_edges = next_edges[:1]
+                        exit_edges = next_edges[1:2]
+                    if visit_counts.get(current_id, 0) <= repeat:
+                        current_id = body_edges[0]["target"] if body_edges else None
+                    else:
+                        current_id = exit_edges[0]["target"] if exit_edges else None
+                    continue
+
+                elif ntype == "repeat_until":
+                    max_repeat = int(nd.get("max_repeat", 10))
+                    result     = await eval_condition(nd)
+                    body_edges = [e for e in next_edges if e.get("sourceHandle") == "body"]
+                    exit_edges = [e for e in next_edges if e.get("sourceHandle") == "exit"]
+                    if not body_edges and not exit_edges:
+                        body_edges = next_edges[:1]
+                        exit_edges = next_edges[1:2]
+                    if result or visit_counts.get(current_id, 0) >= max_repeat:
+                        current_id = exit_edges[0]["target"] if exit_edges else None
+                    else:
+                        current_id = body_edges[0]["target"] if body_edges else None
+                    continue
+
+                elif ntype in ("chunk_text", "embedding"):
+                    pass  # processed at end of flow
 
                 elif ntype == "crawl":
                     # Crawl trang hiện tại và APPEND vào ChromaDB (không xóa dữ liệu cũ)
@@ -356,7 +457,7 @@ async def _execute_flow(
                                 m.setdefault("section", "")
                             for chunk in crawl_chunks:
                                 chunk.metadata = {k: (v if v is not None else "") for k, v in chunk.metadata.items()}
-                            vs = get_vectorstore()
+                            vs = get_vectorstore(gemini_key=gemini_key, openai_key=openai_key)
                             crawl_ids = [str(uuid.uuid4()) for _ in crawl_chunks]
                             vs.add_documents(crawl_chunks, ids=crawl_ids)
 
@@ -365,9 +466,8 @@ async def _execute_flow(
                     raise
                 # continue_on_error=True → bỏ qua lỗi, đi tiếp
 
-            # Chuyển sang node tiếp theo
-            next_ids = graph.get(current_id, [])
-            current_id = next_ids[0] if next_ids else None
+            # advance
+            current_id = next_id
 
         await browser.close()
 
@@ -379,12 +479,14 @@ def ingest_url_with_flow(
     nodes: list[dict],
     edges: list[dict],
     cookies: str | None = None,
+    gemini_key: str | None = None,
+    openai_key: str | None = None,
 ) -> int:
     """
     Chạy automation flow và lưu nội dung thu thập vào ChromaDB.
     Trả về số chunks đã lưu.
     """
-    docs = asyncio.run(_execute_flow(url, nodes, edges, cookies))
+    docs = asyncio.run(_execute_flow(url, nodes, edges, cookies, gemini_key, openai_key))
 
     if not docs:
         return 0
@@ -393,7 +495,7 @@ def ingest_url_with_flow(
     if not final_chunks:
         return 0
 
-    vs = get_vectorstore()
+    vs = get_vectorstore(gemini_key=gemini_key, openai_key=openai_key)
 
     # Xóa bản cũ cùng URL
     try:
@@ -421,7 +523,7 @@ def ingest_url_with_flow(
 
 # ── Main ingest function ──────────────────────────────────
 
-def ingest_url(url: str, max_depth: int = 1, cookies: str | None = None) -> int:
+def ingest_url(url: str, max_depth: int = 1, cookies: str | None = None, gemini_key: str | None = None, openai_key: str | None = None) -> int:
     """
     Crawl URL bằng crawl4ai, chunk và lưu vào ChromaDB.
     Tự động xóa bản cũ nếu URL đã được nạp.
@@ -449,7 +551,7 @@ def ingest_url(url: str, max_depth: int = 1, cookies: str | None = None) -> int:
                 chunk.page_content = f"[Chủ đề: {section}]\n\n{chunk.page_content}"
 
     # Xóa bản cũ
-    vs = get_vectorstore()
+    vs = get_vectorstore(gemini_key=gemini_key, openai_key=openai_key)
     try:
         existing = vs.get(where={"source": url})
         if existing and existing.get("ids"):

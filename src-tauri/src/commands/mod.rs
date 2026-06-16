@@ -3,7 +3,6 @@ pub mod writing;
 pub mod vocabulary;
 pub mod clipboard;
 pub mod anki;
-pub mod ollama;
 pub mod backend;
 pub mod pdf;
 

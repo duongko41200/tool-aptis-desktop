@@ -13,10 +13,7 @@ from pydantic import BaseModel
 from agent import build_chain, get_retriever, get_vectorstore
 from ingest import ingest_url, ingest_url_with_flow
 
-OLLAMA_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-LLM_MODEL  = os.getenv("LLM_MODEL", "llama3:latest")
-
-app = FastAPI(title="Aptis RAG API", version="1.0.0")
+app = FastAPI(title="Aptis RAG API", version="2.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -31,122 +28,31 @@ async def ping():
     return {"ok": True}
 
 
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
+
 # ── Schemas ───────────────────────────────────────────────
 class ChatRequest(BaseModel):
     question: str
     history: list[dict] = []
-    model: str = "qwen3:4b"
-    openai_key: str | None = None   # nếu dùng OpenAI thay Ollama
-    gemini_key: str | None = None   # nếu dùng Gemini thay Ollama
+    model: str = "gemini-2.5-flash"
+    openai_key: str | None = None
+    gemini_key: str | None = None
 
 
 class IngestRequest(BaseModel):
     url: str
     max_depth: int = 2
     openai_key: str | None = None
-    cookies: str | None = None   # Cookie header string, vd: "session=abc; token=xyz"
+    gemini_key: str | None = None
+    cookies: str | None = None
 
 
-# ── Model / Ollama status ─────────────────────────────────
-@app.get("/models/status")
-async def model_status():
-    """Kiểm tra Ollama đang chạy và model đã pull chưa."""
-    try:
-        async with httpx.AsyncClient() as c:
-            r = await c.get(f"{OLLAMA_URL}/api/tags", timeout=3.0)
-        installed = [
-            m["name"] for m in r.json().get("models", [])
-            if "embed" not in m["name"].lower() and "minilm" not in m["name"].lower()
-        ]
-        # Ưu tiên LLM_MODEL, nếu không có thì dùng model đầu tiên trong danh sách
-        if any(LLM_MODEL in m for m in installed):
-            active_model = LLM_MODEL
-            available = True
-        elif installed:
-            active_model = installed[0]
-            available = True
-        else:
-            active_model = LLM_MODEL
-            available = False
-
-        from agent import _pick_embed_model
-        # _pick_embed_model là blocking (httpx sync) — chạy trong thread pool
-        embed_model = await asyncio.to_thread(_pick_embed_model)
-
-        return {
-            "ollama_running": True,
-            "model_available": available,
-            "model": active_model,
-            "installed_models": installed,
-            "embed_model": embed_model,
-            "embed_ready": embed_model is not None,
-        }
-    except Exception:
-        return {
-            "ollama_running": False,
-            "model_available": False,
-            "model": LLM_MODEL,
-            "installed_models": [],
-            "embed_model": None,
-            "embed_ready": False,
-        }
-
-
-@app.get("/models/pull")
-async def pull_model():
-    """Stream tiến trình pull model từ Ollama (SSE)."""
-    async def generate():
-        try:
-            async with httpx.AsyncClient(timeout=None) as c:
-                async with c.stream(
-                    "POST",
-                    f"{OLLAMA_URL}/api/pull",
-                    json={"name": LLM_MODEL},
-                ) as r:
-                    async for line in r.aiter_lines():
-                        if line.strip():
-                            yield f"data: {line}\n\n"
-        except Exception as e:
-            yield f'data: {{"error": "{str(e)}"}}\n\n'
-        yield 'data: {"done": true}\n\n'
-
-    return StreamingResponse(
-        generate(),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
-
-
-@app.get("/models/pull-embed")
-async def pull_embed_model():
-    """Stream tiến trình pull nomic-embed-text (SSE)."""
-    EMBED_TARGET = os.getenv("EMBED_MODEL", "nomic-embed-text")
-
-    async def generate():
-        try:
-            async with httpx.AsyncClient(timeout=None) as c:
-                async with c.stream(
-                    "POST",
-                    f"{OLLAMA_URL}/api/pull",
-                    json={"name": EMBED_TARGET},
-                ) as r:
-                    async for line in r.aiter_lines():
-                        if line.strip():
-                            yield f"data: {line}\n\n"
-        except Exception as e:
-            yield f'data: {{"error": "{str(e)}"}}\n\n'
-        yield 'data: {"done": true}\n\n'
-
-    return StreamingResponse(
-        generate(),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
-
-
+# ── OpenAI key validation ─────────────────────────────────
 @app.post("/openai/validate")
 async def validate_openai_key(body: dict):
-    """Kiểm tra OpenAI API key có hợp lệ không."""
     key = body.get("key", "")
     if not key.startswith("sk-"):
         raise HTTPException(400, "API key không hợp lệ")
@@ -164,23 +70,11 @@ async def validate_openai_key(body: dict):
         raise HTTPException(408, "Timeout khi kiểm tra key")
 
 
-# ── Health ────────────────────────────────────────────────
-@app.get("/health")
-async def health():
-    try:
-        async with httpx.AsyncClient() as c:
-            r = await c.get(f"{OLLAMA_URL}/api/tags", timeout=3.0)
-        models = [m["name"] for m in r.json().get("models", [])]
-        return {"status": "ok", "ollama": True, "models": models}
-    except Exception:
-        return {"status": "degraded", "ollama": False, "models": []}
-
-
 # ── Chat ──────────────────────────────────────────────────
 @app.post("/chat")
 async def chat(req: ChatRequest):
     try:
-        chain, retriever = build_chain(req.model, openai_key=req.openai_key, gemini_key=req.gemini_key)
+        chain, retriever = build_chain(req.model, gemini_key=req.gemini_key, openai_key=req.openai_key)
         docs    = await asyncio.to_thread(retriever.invoke, req.question)
         sources = [
             {
@@ -203,9 +97,8 @@ async def chat_stream(req: ChatRequest):
 
     async def generate():
         try:
-            chain, retriever = build_chain(req.model, openai_key=req.openai_key, gemini_key=req.gemini_key)
+            chain, retriever = build_chain(req.model, gemini_key=req.gemini_key, openai_key=req.openai_key)
 
-            # Lấy context trước
             docs = await asyncio.to_thread(retriever.invoke, req.question)
             sources = [
                 {
@@ -215,10 +108,8 @@ async def chat_stream(req: ChatRequest):
                 }
                 for d in docs[:3]
             ]
-            # Emit sources ngay
             yield f"data: {json.dumps({'type': 'sources', 'sources': sources})}\n\n"
 
-            # Stream từng token từ LLM
             if req.gemini_key:
                 from langchain_google_genai import ChatGoogleGenerativeAI
                 streaming_llm = ChatGoogleGenerativeAI(google_api_key=req.gemini_key, model=req.model, temperature=0, streaming=True)
@@ -226,12 +117,10 @@ async def chat_stream(req: ChatRequest):
                 from langchain_openai import ChatOpenAI
                 streaming_llm = ChatOpenAI(api_key=req.openai_key, model=req.model, temperature=0, streaming=True)
             else:
-                from langchain_ollama import ChatOllama
-                streaming_llm = ChatOllama(model=req.model, base_url=OLLAMA_URL)
+                yield f"data: {json.dumps({'type': 'error', 'error': 'Gemini API key là bắt buộc'})}\n\n"
+                return
 
             from langchain_core.prompts import ChatPromptTemplate
-            from langchain_core.output_parsers import StrOutputParser
-            from langchain_core.runnables import RunnablePassthrough
             from agent import format_docs, SYSTEM_PROMPT
 
             context_str = format_docs(docs)
@@ -324,20 +213,11 @@ class FlowIngestRequest(BaseModel):
     edges: list[FlowEdge]
     cookies: str | None = None
     openai_key: str | None = None
+    gemini_key: str | None = None
 
 
 @app.post("/ingest/flow")
 async def ingest_flow(req: FlowIngestRequest):
-    """
-    Chạy automation workflow và lưu nội dung vào ChromaDB.
-
-    Luồng thực thi:
-        Frontend gửi nodes + edges (React Flow graph)
-        → Backend build DAG
-        → Playwright mở browser, chạy từng node theo thứ tự edges
-        → Mỗi click/extract tích luỹ diff nội dung
-        → Chunk + embed + lưu ChromaDB
-    """
     try:
         chunks = await asyncio.to_thread(
             ingest_url_with_flow,
@@ -345,6 +225,8 @@ async def ingest_flow(req: FlowIngestRequest):
             [n.model_dump() for n in req.nodes],
             [e.model_dump() for e in req.edges],
             req.cookies,
+            req.gemini_key,
+            req.openai_key,
         )
         return {"status": "ok", "url": req.url, "chunks": chunks}
     except Exception as e:
@@ -355,7 +237,7 @@ async def ingest_flow(req: FlowIngestRequest):
 @app.post("/ingest/url")
 async def ingest(req: IngestRequest):
     try:
-        chunks = await asyncio.to_thread(ingest_url, req.url, req.max_depth, req.cookies)
+        chunks = await asyncio.to_thread(ingest_url, req.url, req.max_depth, req.cookies, req.gemini_key, req.openai_key)
         return {"status": "ok", "url": req.url, "chunks": chunks}
     except Exception as e:
         import traceback
@@ -387,13 +269,11 @@ async def list_sources():
 
 @app.get("/sources/chunks")
 async def get_source_chunks(url: str = Query(...)):
-    """Trả về toàn bộ chunk của một URL, kèm nội dung và metadata."""
     vs = get_vectorstore()
     try:
         data = vs.get(where={"source": url}, include=["documents", "metadatas"])
     except Exception:
         data = vs.get(include=["documents", "metadatas"])
-        # lọc thủ công nếu where không hỗ trợ
         ids   = data.get("ids", [])
         docs  = data.get("documents", []) or []
         metas = data.get("metadatas", []) or []

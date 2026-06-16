@@ -6,13 +6,14 @@ import RagSetupModal from '../components/rag/RagSetupModal';
 import AutomationFlowBuilder from '../components/rag/AutomationFlowBuilder';
 import {
   ragChatStream, ragIngestUrl, ragIngestDebug, ragListSources, ragDeleteSource, ragGetChunks,
+  pingBackend,
   type RagSource, type SourceInfo, type ChunkInfo, type IngestDebugResult,
 } from '../lib/rag-api';
 
 /* ── Types ───────────────────────────────────────────────── */
 type Role = 'user' | 'ai';
 type Model = string;
-type EmbedModel = 'nomic-embed-text' | 'openai';
+type EmbedModel = 'google' | 'openai';
 
 interface Message {
   id: number;
@@ -593,8 +594,8 @@ export default function RagChatPage() {
   const [input, setInput]           = useState('');
   const [loading, setLoading]       = useState(false);
   const [error, setError]           = useState<string | null>(null);
-  const [model, setModel]           = useState<Model>('llama3:latest');
-  const [embedModel, setEmbedModel] = useState<EmbedModel>('nomic-embed-text');
+  const [model, setModel]           = useState<Model>('gemini-2.5-flash');
+  const [embedModel, setEmbedModel] = useState<EmbedModel>('openai');
   const [urls, setUrls]             = useState<IngestedUrl[]>([]);
   const [urlInput, setUrlInput]       = useState('');
   const [addingUrl, setAddingUrl]     = useState(false);
@@ -606,15 +607,12 @@ export default function RagChatPage() {
   const [debugUrl, setDebugUrl] = useState('');
   const [debugLoading, setDebugLoading] = useState(false);
   const [debugError, setDebugError] = useState<string | null>(null);
-  const [ollamaOk, setOllamaOk]     = useState<boolean | null>(null);
   const [backendOk, setBackendOk]   = useState<boolean | null>(null);
   const [setupDone, setSetupDone]   = useState(false);
   const [openaiKey, setOpenaiKey]   = useState<string | undefined>(
     localStorage.getItem('rag_openai_key') ?? undefined
   );
-  const [geminiKey, setGeminiKey]   = useState<string>(
-    localStorage.getItem('rag_gemini_key') ?? ''
-  );
+  const [geminiKey, setGeminiKey]   = useState<string>('');
   const bottomRef   = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -627,23 +625,17 @@ export default function RagChatPage() {
   const [backendErr, setBackendErr] = useState<string | null>(null);
   const [showFlowBuilder, setShowFlowBuilder] = useState(false);
 
-  // Check backend + Ollama status
+  // Check backend status
   const checkStatus = useCallback(async () => {
-    invoke<boolean>('check_ollama_running')
-      .then(ok => setOllamaOk(ok))
-      .catch(() => setOllamaOk(false));
     try {
-      const r = await fetch('http://localhost:8080/models/status', { signal: AbortSignal.timeout(5000) });
-      if (r.ok) {
+      const alive = await pingBackend();
+      if (alive) {
         setBackendErr(null);
-        const s = await r.json();
         setBackendOk(true);
-        if (s.model) setModel(s.model);
         const list = await ragListSources().catch(() => []);
         setUrls(list.map((src: import('../lib/rag-api').SourceInfo) => ({ ...src, status: 'ok' as const })));
       } else {
-        const body = await r.text().catch(() => '');
-        setBackendErr(`HTTP ${r.status}: ${body.slice(0, 120)}`);
+        setBackendErr('Backend không phản hồi');
         setBackendOk(false);
       }
     } catch (e) {
@@ -664,10 +656,8 @@ export default function RagChatPage() {
       // Poll tối đa 15 giây cho uvicorn khởi động
       for (let i = 0; i < 15; i++) {
         await new Promise(r => setTimeout(r, 1000));
-        try {
-          const r = await fetch('http://localhost:8080/models/status', { signal: AbortSignal.timeout(1500) });
-          if (r.ok) { await checkStatus(); return; }
-        } catch { /* chưa sẵn sàng */ }
+        const alive = await pingBackend();
+        if (alive) { await checkStatus(); return; }
       }
       await checkStatus(); // lần cuối để hiện lỗi cụ thể
     } catch (e: unknown) {
@@ -681,8 +671,17 @@ export default function RagChatPage() {
   useEffect(() => {
     const savedKey = localStorage.getItem('rag_openai_key');
     if (savedKey) { setSetupDone(true); setOpenaiKey(savedKey); }
-    const savedGeminiKey = localStorage.getItem('rag_gemini_key');
-    if (savedGeminiKey) setGeminiKey(savedGeminiKey);
+
+    // Load Gemini key: ưu tiên Tauri store, fallback về localStorage
+    invoke<{ gemini_api_key?: string }>('get_settings')
+      .then(s => {
+        const key = s.gemini_api_key || localStorage.getItem('gemini_api_key') || '';
+        if (key) setGeminiKey(key);
+      })
+      .catch(() => {
+        const key = localStorage.getItem('gemini_api_key') || '';
+        if (key) setGeminiKey(key);
+      });
 
     // Spawn backend, sau đó poll cho đến khi ready (tối đa 12s)
     (async () => {
@@ -693,10 +692,8 @@ export default function RagChatPage() {
       }
       for (let i = 0; i < 12; i++) {
         await new Promise(r => setTimeout(r, 1000));
-        try {
-          const r = await fetch('http://localhost:8080/models/status', { signal: AbortSignal.timeout(1500) });
-          if (r.ok) { await checkStatus(); return; }
-        } catch { /* chưa sẵn sàng */ }
+        const alive = await pingBackend();
+        if (alive) { await checkStatus(); return; }
       }
       await checkStatus(); // hiện lỗi thực sự nếu không kết nối được
     })();
@@ -776,7 +773,7 @@ export default function RagChatPage() {
     setUrlInput('');
     setAddingUrl(false);
     try {
-      const res = await ragIngestUrl(trimmed, 1, openaiKey, cookieInput.trim() || undefined);
+      const res = await ragIngestUrl(trimmed, 1, openaiKey, cookieInput.trim() || undefined, geminiKey || undefined);
       setUrls(prev => prev.map(u =>
         u.url === trimmed && u.status === 'loading'
           ? { ...u, status: 'ok', chunks: res.chunks }
@@ -831,10 +828,8 @@ export default function RagChatPage() {
       {/* Setup modal */}
       {!setupDone && (
         <RagSetupModal
-          onReady={({ mode, openaiKey: key }) => {
+          onReady={() => {
             setSetupDone(true);
-            if (mode === 'ollama') setOllamaOk(true);
-            if (mode === 'openai' && key) setOpenaiKey(key);
             refreshSources();
           }}
           onDismiss={() => setSetupDone(true)}
@@ -916,23 +911,6 @@ export default function RagChatPage() {
           }}>
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--good)', boxShadow: '0 0 5px var(--good)' }} />
             {model}
-          </span>
-          {/* Ollama status */}
-          <span style={{
-            display: 'inline-flex', alignItems: 'center', gap: 6,
-            padding: '5px 12px', borderRadius: 'var(--r-pill)',
-            background: ollamaOk === null ? 'rgba(255,255,255,0.08)' : ollamaOk ? 'rgba(111,174,90,0.14)' : 'rgba(217,138,106,0.18)',
-            border: `1px solid ${ollamaOk === null ? 'rgba(255,255,255,0.12)' : ollamaOk ? 'rgba(111,174,90,0.28)' : 'rgba(217,138,106,0.35)'}`,
-            fontSize: 12, fontWeight: 700,
-            color: ollamaOk === null ? 'rgba(255,255,255,0.45)' : ollamaOk ? 'var(--good)' : 'var(--bad)',
-          }}>
-            <span style={{
-              width: 6, height: 6, borderRadius: '50%',
-              background: ollamaOk === null ? 'rgba(255,255,255,0.3)' : ollamaOk ? 'var(--good)' : 'var(--bad)',
-              boxShadow: ollamaOk ? '0 0 5px var(--good)' : 'none',
-              animation: ollamaOk === null ? 'rag-bounce 1s infinite' : 'none',
-            }} />
-            {ollamaOk === null ? 'Kiểm tra...' : ollamaOk ? 'Ollama' : 'Ollama offline'}
           </span>
           {/* Backend status */}
           <span
@@ -1154,35 +1132,32 @@ export default function RagChatPage() {
                 {/* LLM */}
                 <div>
                   <div className="label-cap" style={{ color: 'rgba(255,255,255,0.4)', marginBottom: 10 }}>Mô hình ngôn ngữ</div>
-                  <ModelOption val="qwen3:4b"           label="Qwen3:4b"           desc="Ollama · offline · context 32K"     free   active={model === 'qwen3:4b'}           onClick={() => setModel('qwen3:4b')} />
-                  <ModelOption val="gemini-2.5-flash"   label="Gemini 2.5 Flash"   desc="Google AI · cần Gemini API key"    free={false} active={model === 'gemini-2.5-flash'}   onClick={() => setModel('gemini-2.5-flash')} />
-                  <ModelOption val="gemini-2.0-flash"   label="Gemini 2.0 Flash"   desc="Google AI · cần Gemini API key"    free={false} active={model === 'gemini-2.0-flash'}   onClick={() => setModel('gemini-2.0-flash')} />
-                  <ModelOption val="gpt-4o"             label="GPT-4o"             desc="OpenAI API · cần API key"          free={false} active={model === 'gpt-4o'}             onClick={() => setModel('gpt-4o')} />
-                  <ModelOption val="claude-sonnet"      label="Claude Sonnet"      desc="Anthropic API · cần API key"       free={false} active={model === 'claude-sonnet'}      onClick={() => setModel('claude-sonnet')} />
+                  <ModelOption val="gemini-2.5-flash"   label="Gemini 2.5 Flash"   desc="Google AI · Gemini API key"    free={false} active={model === 'gemini-2.5-flash'}   onClick={() => setModel('gemini-2.5-flash')} />
+                  <ModelOption val="gemini-2.0-flash"   label="Gemini 2.0 Flash"   desc="Google AI · Gemini API key"    free={false} active={model === 'gemini-2.0-flash'}   onClick={() => setModel('gemini-2.0-flash')} />
+                  <ModelOption val="gpt-4o"             label="GPT-4o"             desc="OpenAI API · cần API key"      free={false} active={model === 'gpt-4o'}             onClick={() => setModel('gpt-4o')} />
 
-                  {/* Gemini API key input */}
+                  {/* Gemini key status */}
                   {(model === 'gemini-2.5-flash' || model === 'gemini-2.0-flash') && (
-                    <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 5 }}>
-                      <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', fontWeight: 600 }}>Gemini API Key</div>
-                      <input
-                        type="password"
-                        value={geminiKey}
-                        onChange={e => {
-                          setGeminiKey(e.target.value);
-                          localStorage.setItem('rag_gemini_key', e.target.value);
-                        }}
-                        placeholder="AIza..."
-                        style={{
-                          padding: '8px 10px', borderRadius: 'var(--r-sm)',
-                          background: 'rgba(255,255,255,0.08)',
-                          border: `1px solid ${geminiKey ? 'rgba(217,232,157,0.35)' : 'rgba(255,255,255,0.18)'}`,
-                          color: '#fff', fontSize: 12, outline: 'none',
-                          fontFamily: 'var(--font-mono)',
-                        }}
-                      />
-                      {!geminiKey && (
-                        <div style={{ fontSize: 10.5, color: 'rgba(217,138,106,0.85)' }}>
-                          Cần Gemini API key — lấy tại aistudio.google.com
+                    <div style={{ marginTop: 8 }}>
+                      {geminiKey ? (
+                        <div style={{
+                          display: 'flex', alignItems: 'center', gap: 7,
+                          padding: '7px 10px', borderRadius: 'var(--r-sm)',
+                          background: 'rgba(111,174,90,0.12)',
+                          border: '1px solid rgba(111,174,90,0.28)',
+                        }}>
+                          <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--good)', boxShadow: '0 0 5px var(--good)', flexShrink: 0 }} />
+                          <span style={{ fontSize: 11.5, color: 'var(--good)', fontWeight: 600 }}>Gemini key từ Cài đặt</span>
+                        </div>
+                      ) : (
+                        <div style={{
+                          display: 'flex', alignItems: 'center', gap: 7,
+                          padding: '7px 10px', borderRadius: 'var(--r-sm)',
+                          background: 'rgba(217,138,106,0.12)',
+                          border: '1px solid rgba(217,138,106,0.3)',
+                        }}>
+                          <Icon name="lightbulb" size={13} style={{ color: 'var(--warn)', flexShrink: 0 }} />
+                          <span style={{ fontSize: 11.5, color: 'var(--warn)' }}>Chưa có key — vào <strong>Cài đặt</strong> để thêm</span>
                         </div>
                       )}
                     </div>
@@ -1193,8 +1168,8 @@ export default function RagChatPage() {
                 <div>
                   <div className="label-cap" style={{ color: 'rgba(255,255,255,0.4)', marginBottom: 10 }}>Embedding model</div>
                   {([
-                    ['nomic-embed-text', 'nomic-embed-text', 'Ollama · offline · miễn phí', true],
-                    ['openai',           'text-embedding-3',  'OpenAI · cần API key',        false],
+                    ['google',  'text-embedding-004', 'Google AI · dùng Gemini key', false],
+                    ['openai',  'text-embedding-3',   'OpenAI · cần OpenAI key',     false],
                   ] as const).map(([id, label, desc, free]) => (
                     <ModelOption key={id} val={id} label={label} desc={desc} free={free}
                       active={embedModel === id} onClick={() => setEmbedModel(id)} />
@@ -1206,13 +1181,11 @@ export default function RagChatPage() {
                   background: 'rgba(255,255,255,0.04)',
                   border: '1px solid rgba(255,255,255,0.08)',
                   borderRadius: 'var(--r-md)', padding: '14px 12px',
-                  display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12,
+                  display: 'flex', gap: 12,
                 }}>
                   {[
-                    ['Nguồn web',  okCount],
+                    ['Nguồn web',   okCount],
                     ['Tổng chunks', totalChunks],
-                    ['Model size',  '~2.5 GB'],
-                    ['RAM dùng',    '~3.8 GB'],
                   ].map(([lbl, val]) => (
                     <div key={String(lbl)} style={{ textAlign: 'center' }}>
                       <div style={{ fontSize: 19, fontWeight: 800, color: 'var(--accent)', fontFamily: 'var(--font-mono)' }}>{val}</div>
@@ -1434,6 +1407,7 @@ export default function RagChatPage() {
     {showFlowBuilder && (
       <AutomationFlowBuilder
         openaiKey={openaiKey}
+        geminiKey={geminiKey}
         onClose={() => setShowFlowBuilder(false)}
         onComplete={(flowUrl, chunks) => {
           setUrls(prev => {

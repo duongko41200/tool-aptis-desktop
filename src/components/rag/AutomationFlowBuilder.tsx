@@ -1,4 +1,4 @@
-import { useCallback, useState, useMemo, useEffect, DragEvent } from 'react';
+import { useCallback, useState, useMemo, useEffect, useRef, DragEvent } from 'react';
 import {
   ReactFlow,
   Background,
@@ -162,12 +162,37 @@ function AutomationNodeComp({ data, selected }: NodeProps) {
         </div>
       )}
 
-      {/* ── Source handle (bottom, output) ── */}
-      {!isEnd && (
-        <Handle type="source" position={Position.Bottom}
-          style={{ ...handleStyle, bottom: -11 }}
-        />
-      )}
+      {/* ── Source handles ── */}
+      {!isEnd && (() => {
+        if (type === 'condition') {
+          return (
+            <>
+              <Handle type="source" id="true" position={Position.Bottom}
+                style={{ ...handleStyle, bottom: -11, left: '28%', transform: 'none' }} />
+              <Handle type="source" id="false" position={Position.Bottom}
+                style={{ ...handleStyle, bottom: -11, left: '72%', transform: 'none' }} />
+              <div style={{ position: 'absolute', bottom: -24, left: '14%', fontSize: 9, color: '#6fae5a', fontWeight: 800, pointerEvents: 'none' }}>✓ True</div>
+              <div style={{ position: 'absolute', bottom: -24, left: '60%', fontSize: 9, color: '#d98a6a', fontWeight: 800, pointerEvents: 'none' }}>✗ False</div>
+            </>
+          );
+        }
+        if (type === 'loop' || type === 'repeat_until') {
+          return (
+            <>
+              <Handle type="source" id="body" position={Position.Bottom}
+                style={{ ...handleStyle, bottom: -11, left: '28%', transform: 'none' }} />
+              <Handle type="source" id="exit" position={Position.Bottom}
+                style={{ ...handleStyle, bottom: -11, left: '72%', transform: 'none' }} />
+              <div style={{ position: 'absolute', bottom: -24, left: '14%', fontSize: 9, color: '#e0a93b', fontWeight: 800, pointerEvents: 'none' }}>↻ Body</div>
+              <div style={{ position: 'absolute', bottom: -24, left: '62%', fontSize: 9, color: '#b07ef5', fontWeight: 800, pointerEvents: 'none' }}>→ Exit</div>
+            </>
+          );
+        }
+        return (
+          <Handle type="source" position={Position.Bottom}
+            style={{ ...handleStyle, bottom: -11 }} />
+        );
+      })()}
     </div>
   );
 }
@@ -250,6 +275,27 @@ function FieldToggle({ label, value, onChange }: { label: string; value: boolean
   );
 }
 
+function FieldSelect({ label, value, onChange, options }: {
+  label: string; value: string; onChange: (v: string) => void;
+  options: { value: string; label: string }[];
+}) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+      <label style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#79836d' }}>{label}</label>
+      <select value={value} onChange={e => onChange(e.target.value)} style={{
+        padding: '8px 11px', borderRadius: 12,
+        background: 'rgba(255,255,255,0.55)',
+        border: '1px solid rgba(40,55,30,0.12)',
+        color: '#232a1e', fontSize: 12.5, outline: 'none',
+        fontFamily: "'Plus Jakarta Sans', sans-serif",
+        cursor: 'pointer',
+      }}>
+        {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+    </div>
+  );
+}
+
 // ─── Properties panel (light-glass surface) ──────────────────────────────────
 
 function PropertiesPanel({ node, onChange }: { node: Node; onChange: (field: string, value: unknown) => void }) {
@@ -261,6 +307,12 @@ function PropertiesPanel({ node, onChange }: { node: Node; onChange: (field: str
   const needsKey      = type === 'press_key';
   const needsUrl      = type === 'open_url';
   const isCrawl       = type === 'crawl';
+  const needsSaveVar    = type === 'save_var';
+  const isCondition     = type === 'condition';
+  const isLoop          = type === 'loop';
+  const isRepeatUntil   = type === 'repeat_until';
+  const isScreenshot    = type === 'screenshot';
+  const needsCondFields = isCondition || isRepeatUntil;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -367,6 +419,67 @@ function PropertiesPanel({ node, onChange }: { node: Node; onChange: (field: str
               onChange={v => onChange('capture_content', v)}
             />
           )}
+
+          {needsSaveVar && (
+            <>
+              <FieldInput label="Tên biến" value={String(node.data.var_name ?? '')} onChange={v => onChange('var_name', v)} mono placeholder="my_var" />
+              <FieldInput label="CSS Selector (tuỳ chọn)" value={String(node.data.selector ?? '')} onChange={v => onChange('selector', v)} mono placeholder=".value-element" />
+              <FieldInput label="Attribute (tuỳ chọn)" value={String(node.data.attribute ?? '')} onChange={v => onChange('attribute', v)} mono placeholder="href, value, data-id..." />
+              <FieldInput label="Regex extract (tuỳ chọn)" value={String(node.data.regex ?? '')} onChange={v => onChange('regex', v)} mono placeholder="(\d+)" />
+              <div style={{ fontSize: 11, color: '#79836d', lineHeight: 1.55 }}>
+                Dùng <code style={{ background: 'rgba(40,55,30,0.08)', padding: '1px 4px', borderRadius: 4 }}>{'{{my_var}}'}</code> trong các node sau để dùng lại giá trị.
+              </div>
+            </>
+          )}
+
+          {needsCondFields && (
+            <>
+              <FieldSelect
+                label="Điều kiện"
+                value={String(node.data.condition_type ?? 'element_exists')}
+                onChange={v => onChange('condition_type', v)}
+                options={[
+                  { value: 'element_exists', label: 'Element tồn tại' },
+                  { value: 'page_contains',  label: 'Trang chứa text' },
+                  { value: 'var_equals',     label: 'Biến = giá trị' },
+                  { value: 'url_contains',   label: 'URL chứa text' },
+                ]}
+              />
+              {(node.data.condition_type === 'element_exists' || !node.data.condition_type) && (
+                <FieldInput label="CSS Selector" value={String(node.data.selector ?? '')} onChange={v => onChange('selector', v)} mono placeholder=".element" />
+              )}
+              {node.data.condition_type === 'page_contains' && (
+                <FieldInput label="Text cần tìm" value={String(node.data.expected ?? '')} onChange={v => onChange('expected', v)} placeholder="Nội dung trang chứa..." />
+              )}
+              {node.data.condition_type === 'var_equals' && (
+                <>
+                  <FieldInput label="Tên biến" value={String(node.data.var_name ?? '')} onChange={v => onChange('var_name', v)} mono placeholder="my_var" />
+                  <FieldInput label="Giá trị mong đợi" value={String(node.data.expected ?? '')} onChange={v => onChange('expected', v)} placeholder="expected value" />
+                </>
+              )}
+              {node.data.condition_type === 'url_contains' && (
+                <FieldInput label="URL chứa" value={String(node.data.expected ?? '')} onChange={v => onChange('expected', v)} mono placeholder="/page/detail" />
+              )}
+              {isRepeatUntil && (
+                <FieldNumber label="Lặp tối đa" value={Number(node.data.max_repeat ?? 10)} onChange={v => onChange('max_repeat', v)} />
+              )}
+              {isCondition && (
+                <div style={{ padding: '8px 10px', borderRadius: 10, background: 'rgba(176,126,245,0.1)', border: '1px solid rgba(176,126,245,0.25)', fontSize: 11, color: '#7a4eb5', lineHeight: 1.55 }}>
+                  Kéo từ handle <strong>✓ True</strong> sang node đúng, <strong>✗ False</strong> sang node sai.
+                </div>
+              )}
+            </>
+          )}
+
+          {isScreenshot && (
+            <div style={{ padding: '8px 10px', borderRadius: 10, background: 'rgba(111,174,90,0.1)', border: '1px solid rgba(111,174,90,0.25)', fontSize: 11.5, color: '#4b8c3a', lineHeight: 1.55 }}>
+              Lưu toàn bộ nội dung text trang hiện tại vào ChromaDB.
+            </div>
+          )}
+
+          {/* Suppress unused variable warnings for isLoop */}
+          {isLoop && null}
+
           <FieldToggle
             label="Bỏ qua lỗi"
             value={Boolean(node.data.continue_on_error ?? true)}
@@ -384,14 +497,19 @@ interface Props {
   onClose: () => void;
   onComplete: (url: string, chunks: number) => void;
   openaiKey?: string;
+  geminiKey?: string;
 }
 
-export default function AutomationFlowBuilder({ onClose, onComplete, openaiKey }: Props) {
+export default function AutomationFlowBuilder({ onClose, onComplete, openaiKey, geminiKey }: Props) {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null);
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const [url, setUrl] = useState('');
+  const [cookies, setCookies] = useState('');
+  const [showCookies, setShowCookies] = useState(false);
+  const [cookiePos, setCookiePos] = useState({ top: 0, right: 0 });
+  const cookieBtnRef = useRef<HTMLDivElement>(null);
   const [running, setRunning] = useState(false);
   const [runStatus, setRunStatus] = useState<{ type: 'ok' | 'error'; msg: string } | null>(null);
 
@@ -449,6 +567,13 @@ export default function AutomationFlowBuilder({ onClose, onComplete, openaiKey }
     setSelectedNode(prev => prev?.id === id ? null : prev);
   }, [setNodes, setEdges]);
 
+  useEffect(() => {
+    if (showCookies && cookieBtnRef.current) {
+      const rect = cookieBtnRef.current.getBoundingClientRect();
+      setCookiePos({ top: rect.bottom + 8, right: window.innerWidth - rect.right });
+    }
+  }, [showCookies]);
+
   // Delete/Backspace khi node đang được chọn
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -473,8 +598,10 @@ export default function AutomationFlowBuilder({ onClose, onComplete, openaiKey }
       const res = await ragIngestFlow(
         url.trim(),
         nodes.map(n => ({ id: n.id, data: n.data as Record<string, unknown> })),
-        edges.map(e => ({ id: e.id, source: e.source, target: e.target })),
+        edges.map(e => ({ id: e.id, source: e.source, target: e.target, sourceHandle: e.sourceHandle ?? null })),
         openaiKey,
+        geminiKey,
+        cookies.trim() || undefined,
       );
       setRunStatus({ type: 'ok', msg: `Xong! Lưu được ${res.chunks} chunks` });
       onComplete(url.trim(), res.chunks);
@@ -632,6 +759,84 @@ export default function AutomationFlowBuilder({ onClose, onComplete, openaiKey }
             onFocus={e => { e.currentTarget.style.borderColor = 'rgba(217,232,157,0.5)'; e.currentTarget.style.background = 'rgba(255,255,255,0.12)'; }}
             onBlur={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.14)'; e.currentTarget.style.background = 'rgba(255,255,255,0.09)'; }}
           />
+        </div>
+
+        {/* Cookie toggle + input */}
+        <div ref={cookieBtnRef} style={{ position: 'relative' }}>
+          <button
+            onClick={() => setShowCookies(v => !v)}
+            title="Nhập cookie để truy cập trang cần đăng nhập"
+            style={{
+              height: 36, padding: '0 12px', borderRadius: 10, cursor: 'pointer',
+              background: cookies.trim() ? 'rgba(170,203,79,0.25)' : 'rgba(255,255,255,0.09)',
+              border: `1px solid ${cookies.trim() ? 'rgba(170,203,79,0.45)' : 'rgba(255,255,255,0.14)'}`,
+              color: cookies.trim() ? '#d9e89d' : 'rgba(255,255,255,0.45)',
+              fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6,
+              transition: 'all 140ms', flexShrink: 0,
+              fontFamily: "'Plus Jakarta Sans', sans-serif",
+            } as React.CSSProperties}
+          >
+            🍪 {cookies.trim() ? 'Cookie đã có' : 'Cookie'}
+          </button>
+
+          {showCookies && (
+            <div style={{
+              position: 'fixed', top: cookiePos.top, right: cookiePos.right, zIndex: 9999,
+              width: 420, padding: '14px 14px 12px',
+              background: 'rgba(22,32,18,0.97)',
+              backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
+              border: '1px solid rgba(255,255,255,0.12)',
+              borderRadius: 14,
+              boxShadow: '0 16px 40px rgba(4,10,2,0.7)',
+            }}>
+              <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(217,232,157,0.6)', marginBottom: 8 }}>
+                Cookie (copy từ DevTools → Application → Cookies)
+              </div>
+              <textarea
+                value={cookies}
+                onChange={e => setCookies(e.target.value)}
+                placeholder={'session=abc123; token=xyz; auth=...'}
+                rows={4}
+                style={{
+                  width: '100%', padding: '9px 11px', borderRadius: 10,
+                  background: 'rgba(255,255,255,0.07)',
+                  border: '1px solid rgba(255,255,255,0.14)',
+                  color: '#d9e89d', fontSize: 11.5, outline: 'none', resize: 'vertical',
+                  fontFamily: "'JetBrains Mono', monospace",
+                  lineHeight: 1.6, boxSizing: 'border-box',
+                } as React.CSSProperties}
+                onFocus={e => { e.currentTarget.style.borderColor = 'rgba(217,232,157,0.4)'; }}
+                onBlur={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.14)'; }}
+              />
+              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                <div style={{ flex: 1, fontSize: 10.5, color: 'rgba(255,255,255,0.3)', lineHeight: 1.55 }}>
+                  Playwright sẽ inject cookie vào browser trước khi mở URL.
+                </div>
+                <button
+                  onClick={() => { setCookies(''); }}
+                  style={{
+                    padding: '4px 10px', borderRadius: 8, border: 'none', cursor: 'pointer',
+                    background: 'rgba(217,90,60,0.15)', color: '#d98a6a',
+                    fontSize: 11, fontWeight: 700, flexShrink: 0,
+                    fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  }}
+                >
+                  Xóa
+                </button>
+                <button
+                  onClick={() => setShowCookies(false)}
+                  style={{
+                    padding: '4px 10px', borderRadius: 8, border: 'none', cursor: 'pointer',
+                    background: 'rgba(170,203,79,0.15)', color: '#aacb4f',
+                    fontSize: 11, fontWeight: 700, flexShrink: 0,
+                    fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  }}
+                >
+                  Xong
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Close */}

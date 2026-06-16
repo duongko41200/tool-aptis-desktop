@@ -33,115 +33,14 @@ export interface ChunkInfo {
   };
 }
 
-export interface HealthResponse {
-  status: 'ok' | 'degraded';
-  ollama: boolean;
-  models: string[];
-}
-
-export interface ModelStatus {
-  ollama_running: boolean;
-  model_available: boolean;
-  model: string;
-  installed_models: string[];
-  embed_model: string | null;
-  embed_ready: boolean;
-  backend_offline?: boolean;
-}
-
-export interface PullProgress {
-  status?: string;
-  digest?: string;
-  total?: number;
-  completed?: number;
-  done?: boolean;
-  error?: string;
-}
-
-// ── Health & model status ─────────────────────────────────
-export async function ragHealth(): Promise<HealthResponse> {
-  const r = await fetch(`${BASE}/health`);
-  return r.json();
-}
-
-/** Kiểm tra backend alive — chỉ gọi /ping, không phụ thuộc Ollama. */
+// ── Health ────────────────────────────────────────────────
+/** Kiểm tra backend alive. */
 export async function pingBackend(): Promise<boolean> {
   try {
     const r = await fetch(`${BASE}/ping`, { signal: AbortSignal.timeout(3000) });
     return r.ok;
   } catch {
     return false;
-  }
-}
-
-export async function ragModelStatus(): Promise<ModelStatus> {
-  try {
-    // /models/status gọi Ollama 2 lần → cần timeout đủ lớn
-    const r = await fetch(`${BASE}/models/status`, {
-      signal: AbortSignal.timeout(10000),
-    });
-    if (!r.ok) throw new Error('backend error');
-    return r.json();
-  } catch {
-    return {
-      ollama_running: false,
-      model_available: false,
-      model: 'qwen3:4b',
-      installed_models: [],
-      embed_model: null,
-      embed_ready: false,
-      backend_offline: true,
-    };
-  }
-}
-
-// ── Pull embed model với progress callback ───────────────
-export async function ragPullEmbedModel(
-  onProgress: (p: PullProgress) => void,
-  signal?: AbortSignal,
-): Promise<void> {
-  const r = await fetch(`${BASE}/models/pull-embed`, { signal });
-  if (!r.body) throw new Error('No response body');
-  const reader  = r.body.getReader();
-  const decoder = new TextDecoder();
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    const text = decoder.decode(value, { stream: true });
-    for (const line of text.split('\n')) {
-      if (!line.startsWith('data: ')) continue;
-      try {
-        const data: PullProgress = JSON.parse(line.slice(6));
-        onProgress(data);
-        if (data.done || data.error) return;
-      } catch { /* partial */ }
-    }
-  }
-}
-
-// ── Pull model với progress callback ─────────────────────
-export async function ragPullModel(
-  onProgress: (p: PullProgress) => void,
-  signal?: AbortSignal,
-): Promise<void> {
-  const r = await fetch(`${BASE}/models/pull`, { signal });
-  if (!r.body) throw new Error('No response body');
-  const reader  = r.body.getReader();
-  const decoder = new TextDecoder();
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    const text = decoder.decode(value, { stream: true });
-    // parse SSE lines: "data: {...}\n\n"
-    for (const line of text.split('\n')) {
-      if (!line.startsWith('data: ')) continue;
-      try {
-        const data: PullProgress = JSON.parse(line.slice(6));
-        onProgress(data);
-        if (data.done || data.error) return;
-      } catch { /* partial chunk */ }
-    }
   }
 }
 
@@ -161,7 +60,7 @@ export async function ragValidateOpenAIKey(key: string): Promise<boolean> {
 export async function ragChat(
   question: string,
   history: { role: string; content: string }[],
-  model = 'llama3:latest',
+  model = 'gemini-2.5-flash',
   openaiKey?: string,
   geminiKey?: string,
 ): Promise<ChatResponse> {
@@ -181,7 +80,7 @@ export async function ragChat(
 // ── Chat streaming ────────────────────────────────────────
 export async function ragChatStream(
   question: string,
-  model = 'llama3:latest',
+  model = 'gemini-2.5-flash',
   openaiKey: string | undefined,
   onToken: (token: string) => void,
   onSources: (sources: RagSource[]) => void,
@@ -255,6 +154,7 @@ export async function ragIngestUrl(
   maxDepth = 1,
   openaiKey?: string,
   cookies?: string,
+  geminiKey?: string,
 ): Promise<{ chunks: number }> {
   const r = await fetch(`${BASE}/ingest/url`, {
     method: 'POST',
@@ -263,6 +163,7 @@ export async function ragIngestUrl(
       url,
       max_depth: maxDepth,
       openai_key: openaiKey ?? null,
+      gemini_key: geminiKey ?? null,
       cookies: cookies || null,
     }),
     signal: AbortSignal.timeout(120_000),
@@ -304,6 +205,7 @@ export interface FlowRunEdge {
   id: string;
   source: string;
   target: string;
+  sourceHandle?: string | null;
 }
 
 export async function ragIngestFlow(
@@ -311,11 +213,13 @@ export async function ragIngestFlow(
   nodes: FlowRunNode[],
   edges: FlowRunEdge[],
   openaiKey?: string,
+  geminiKey?: string,
+  cookies?: string,
 ): Promise<{ chunks: number }> {
   const r = await fetch(`${BASE}/ingest/flow`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url, nodes, edges, openai_key: openaiKey ?? null }),
+    body: JSON.stringify({ url, nodes, edges, openai_key: openaiKey ?? null, gemini_key: geminiKey ?? null, cookies: cookies || null }),
     signal: AbortSignal.timeout(300_000),
   });
   if (!r.ok) {

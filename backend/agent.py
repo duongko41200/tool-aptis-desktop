@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
 load_dotenv()
-from langchain_ollama import ChatOllama, OllamaEmbeddings
+
 from langchain_chroma import Chroma
 from langchain_community.retrievers import BM25Retriever
 from langchain.retrievers import EnsembleRetriever
@@ -10,11 +10,8 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.documents import Document
 
-CHROMA_DIR  = os.getenv("CHROMA_DIR",  "./chroma_db")
-COLLECTION  = "aptis_docs"
-OLLAMA_URL  = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-LLM_MODEL   = os.getenv("LLM_MODEL",   "llama3:latest")
-EMBED_MODEL = os.getenv("EMBED_MODEL", "nomic-embed-text")
+CHROMA_DIR = os.getenv("CHROMA_DIR", "./chroma_db")
+COLLECTION  = "aptis_docs_gemini"
 
 SYSTEM_PROMPT = """Bạn là TiPo là một trợ lý AI chuyên về tiếng Anh và luyện thi APTIS.
 QUAN TRỌNG: Luôn luôn trả lời bằng tiếng Việt, bất kể câu hỏi được viết bằng ngôn ngữ nào.
@@ -24,54 +21,49 @@ Tài liệu tham khảo:
 {context}"""
 
 
-def _test_embed(model_name: str) -> bool:
-    """Thử thực sự embed một chuỗi ngắn — trả về True nếu model hỗ trợ."""
-    try:
-        import httpx as _httpx
-        r = _httpx.post(
-            f"{OLLAMA_URL}/api/embeddings",
-            json={"model": model_name, "prompt": "test"},
-            timeout=5.0,
+class _GeminiEmbeddings:
+    """Gọi trực tiếp Google Embedding API v1 qua HTTP — tránh langchain/SDK dùng v1beta."""
+
+    _BASE = "https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent"
+
+    def __init__(self, api_key: str):
+        self._api_key = api_key
+
+    def _embed_one(self, text: str) -> list[float]:
+        import httpx
+        r = httpx.post(
+            self._BASE,
+            params={"key": self._api_key},
+            json={"content": {"parts": [{"text": text}]}},
+            timeout=30.0,
         )
-        return r.status_code == 200 and "embedding" in r.json()
-    except Exception:
-        return False
+        r.raise_for_status()
+        return r.json()["embedding"]["values"]
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        return [self._embed_one(t) for t in texts]
+
+    def embed_query(self, text: str) -> list[float]:
+        return self._embed_one(text)
 
 
-def _pick_embed_model() -> str | None:
-    """Chọn embedding model đầu tiên thực sự hoạt động."""
-    try:
-        import httpx as _httpx
-        r = _httpx.get(f"{OLLAMA_URL}/api/tags", timeout=2.0)
-        installed = [m["name"] for m in r.json().get("models", [])]
-    except Exception:
-        installed = []
-
-    prefer = [EMBED_MODEL, "nomic-embed-text", "all-minilm", "mxbai-embed-large"]
-    for candidate in prefer:
-        if any(candidate.split(":")[0] in m for m in installed):
-            if _test_embed(candidate):
-                return candidate
-    return None
-
-
-def get_embeddings(openai_key: str | None = None):
+def get_embeddings(gemini_key: str | None = None, openai_key: str | None = None):
+    if gemini_key:
+        return _GeminiEmbeddings(gemini_key)
     if openai_key:
-        from langchain_openai import OpenAIEmbeddings
-        return OpenAIEmbeddings(api_key=openai_key, model="text-embedding-3-small")
-
-    model = _pick_embed_model()
-    if model is None:
-        # Không có embedding model — dùng fake để app không crash
-        # RAG vẫn dùng BM25; vector search sẽ kém chất lượng
-        from langchain_community.embeddings import FakeEmbeddings
-        return FakeEmbeddings(size=768)
-    return OllamaEmbeddings(model=model, base_url=OLLAMA_URL)
+        try:
+            from langchain_openai import OpenAIEmbeddings
+            return OpenAIEmbeddings(api_key=openai_key, model="text-embedding-3-small")
+        except Exception:
+            pass
+    # Fallback: RAG vẫn dùng BM25; vector search sẽ kém chất lượng
+    from langchain_community.embeddings import FakeEmbeddings
+    return FakeEmbeddings(size=768)
 
 
-def get_vectorstore(openai_key: str | None = None, embeddings=None) -> Chroma:
+def get_vectorstore(gemini_key: str | None = None, openai_key: str | None = None, embeddings=None) -> Chroma:
     if embeddings is None:
-        embeddings = get_embeddings(openai_key)
+        embeddings = get_embeddings(gemini_key, openai_key)
     return Chroma(
         collection_name=COLLECTION,
         embedding_function=embeddings,
@@ -79,13 +71,13 @@ def get_vectorstore(openai_key: str | None = None, embeddings=None) -> Chroma:
     )
 
 
-def get_retriever(k: int = 6, openai_key: str | None = None):
-    embeddings = get_embeddings(openai_key)
+def get_retriever(k: int = 6, gemini_key: str | None = None, openai_key: str | None = None):
+    embeddings = get_embeddings(gemini_key, openai_key)
     is_fake = type(embeddings).__name__ == "FakeEmbeddings"
     vector_weight = 0.0 if is_fake else 0.7
     bm25_weight = 1.0 if is_fake else 0.3
 
-    vs = get_vectorstore(openai_key, embeddings=embeddings)
+    vs = get_vectorstore(gemini_key, openai_key, embeddings=embeddings)
     vector_ret = vs.as_retriever(search_kwargs={"k": k})
 
     data = vs.get()
@@ -105,25 +97,15 @@ def get_retriever(k: int = 6, openai_key: str | None = None):
 
 
 def _rerank(docs: list[Document], query: str) -> list[Document]:
-    """
-    Simple reranker:
-    1. Loại chunk quá ngắn (< 50 ký tự)
-    2. Loại chunk trùng nội dung (hash đầu 200 ký tự)
-    3. Ưu tiên chunk chứa từ khóa từ query (score đơn giản)
-    4. Giới hạn tối đa 3 chunk per source URL
-    """
     from collections import defaultdict
     import hashlib
 
-    # Đảm bảo metadata không None (có thể xảy ra khi load từ ChromaDB cũ)
     for d in docs:
         if d.metadata is None:
             d.metadata = {}
 
-    # Bước 1: lọc chunk rỗng / quá ngắn
     docs = [d for d in docs if len(d.page_content.strip()) >= 50]
 
-    # Bước 2: dedup theo nội dung
     seen_hashes: set[str] = set()
     deduped = []
     for d in docs:
@@ -132,19 +114,16 @@ def _rerank(docs: list[Document], query: str) -> list[Document]:
             seen_hashes.add(h)
             deduped.append(d)
 
-    # Bước 3: score theo keyword overlap
     query_words = set(query.lower().split())
     def score(d: Document) -> float:
         text = d.page_content.lower()
         hits = sum(1 for w in query_words if w in text)
-        # Ưu tiên chunk có heading khớp query
         section = d.metadata.get("section", "").lower()
         heading_bonus = sum(2 for w in query_words if w in section)
         return hits + heading_bonus
 
     scored = sorted(deduped, key=score, reverse=True)
 
-    # Bước 4: max 3 chunk per source
     source_counts: dict = defaultdict(int)
     result = []
     for d in scored:
@@ -169,7 +148,7 @@ def format_docs(docs: list[Document], query: str = "") -> str:
     return "\n\n---\n\n".join(parts)
 
 
-def build_chain(model: str = LLM_MODEL, openai_key: str | None = None, gemini_key: str | None = None):
+def build_chain(model: str = "gemini-2.5-flash", gemini_key: str | None = None, openai_key: str | None = None):
     if gemini_key:
         from langchain_google_genai import ChatGoogleGenerativeAI
         llm = ChatGoogleGenerativeAI(google_api_key=gemini_key, model=model, temperature=0)
@@ -177,9 +156,9 @@ def build_chain(model: str = LLM_MODEL, openai_key: str | None = None, gemini_ke
         from langchain_openai import ChatOpenAI
         llm = ChatOpenAI(api_key=openai_key, model=model, temperature=0)
     else:
-        llm = ChatOllama(model=model, base_url=OLLAMA_URL)
+        raise ValueError("Gemini API key hoặc OpenAI API key là bắt buộc.")
 
-    retriever = get_retriever(openai_key=openai_key if not gemini_key else None)
+    retriever = get_retriever(gemini_key=gemini_key, openai_key=openai_key)
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", SYSTEM_PROMPT),
