@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import os
 import uuid
 from urllib.parse import urlparse
@@ -138,13 +139,20 @@ _md_splitter = MarkdownHeaderTextSplitter(
 
 _char_splitter = RecursiveCharacterTextSplitter(
     chunk_size=1000,
-    chunk_overlap=200,
+    chunk_overlap=100,
     separators=["\n\n", "\n", ". ", " ", ""],
 )
 
 
+def _content_hash(text: str) -> str:
+    """Hash chuẩn hoá để dedup — bỏ khoảng trắng thừa, lowercase."""
+    normalized = " ".join(text.lower().split())
+    return hashlib.md5(normalized[:400].encode()).hexdigest()
+
+
 def _chunk_docs(raw_docs: list[Document]) -> list[Document]:
     final: list[Document] = []
+    seen_hashes: set[str] = set()
 
     for doc in raw_docs:
         if not doc.page_content.strip():
@@ -162,7 +170,11 @@ def _chunk_docs(raw_docs: list[Document]) -> list[Document]:
         for cc in char_chunks:
             if cc.metadata is None:
                 cc.metadata = {}
-        final.extend(char_chunks)
+            h = _content_hash(cc.page_content)
+            if h in seen_hashes:
+                continue
+            seen_hashes.add(h)
+            final.append(cc)
 
     return final
 
@@ -540,18 +552,6 @@ def ingest_url(url: str, max_depth: int = 1, cookies: str | None = None, gemini_
 
     if not final_chunks:
         return 0
-
-    # Prepend breadcrumb ngữ cảnh vào đầu mỗi chunk
-    for chunk in final_chunks:
-        heading_parts = [
-            chunk.metadata[k]
-            for k in ["heading1", "heading2", "heading3"]
-            if chunk.metadata.get(k)
-        ]
-        if heading_parts:
-            section = " > ".join(heading_parts)
-            if not chunk.page_content.startswith("[Chủ đề:"):
-                chunk.page_content = f"[Chủ đề: {section}]\n\n{chunk.page_content}"
 
     # Xóa bản cũ
     vs = get_vectorstore(gemini_key=gemini_key, openai_key=openai_key)

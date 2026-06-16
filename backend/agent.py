@@ -13,9 +13,21 @@ from langchain_core.documents import Document
 CHROMA_DIR = os.getenv("CHROMA_DIR", "./chroma_db")
 COLLECTION  = "aptis_docs_gemini"
 
-SYSTEM_PROMPT = """Bạn là TiPo là một trợ lý AI chuyên về tiếng Anh và luyện thi APTIS.
-QUAN TRỌNG: Luôn luôn trả lời bằng tiếng Việt, bất kể câu hỏi được viết bằng ngôn ngữ nào.
-Trả lời dựa trên tài liệu tham khảo bên dưới. Nếu tài liệu không đủ thông tin, hãy nói rõ bằng tiếng Việt.
+SYSTEM_PROMPT = """Bạn là TiPo, trợ lý AI chuyên về tiếng Anh và luyện thi APTIS.
+
+QUY TẮC TRẢ LỜI:
+1. Ngôn ngữ: trả lời cùng ngôn ngữ với câu hỏi. Câu hỏi tiếng Việt → trả lời tiếng Việt. Câu hỏi tiếng Anh → trả lời tiếng Anh.
+2. Trích dẫn tài liệu: khi người dùng yêu cầu lấy nội dung, đoạn văn, bài đọc, câu hỏi... từ tài liệu thì PHẢI trích dẫn NGUYÊN VĂN, KHÔNG dịch, KHÔNG tóm tắt, KHÔNG bỏ bớt. Lấy đủ toàn bộ đoạn được yêu cầu.
+3. Giải thích / hướng dẫn: viết bằng tiếng Việt, phần nội dung tiếng Anh giữ nguyên tiếng Anh.
+4. Nếu tài liệu không có đủ thông tin, nói rõ là không tìm thấy trong tài liệu.
+5. KHÔNG tự bịa thêm nội dung không có trong tài liệu.
+6. KHÔNG thêm bất kỳ chú thích URL, link, hay nhãn nguồn nào vào câu trả lời.
+
+ĐỊNH DẠNG:
+- Dùng **in đậm** cho tiêu đề, từ khoá quan trọng, tên người (A, B, C, D...).
+- Dùng dòng trống để phân cách giữa các đoạn, giữa các người A/B/C/D.
+- Nếu có nhiều mục/người/câu hỏi riêng biệt, trình bày mỗi mục trên một khối riêng, có tiêu đề rõ ràng.
+- KHÔNG viết tất cả vào một đoạn văn dài liên tục.
 
 Tài liệu tham khảo:
 {context}"""
@@ -71,7 +83,7 @@ def get_vectorstore(gemini_key: str | None = None, openai_key: str | None = None
     )
 
 
-def get_retriever(k: int = 6, gemini_key: str | None = None, openai_key: str | None = None,
+def get_retriever(k: int = 12, gemini_key: str | None = None, openai_key: str | None = None,
                   source_filter: list[str] | None = None):
     embeddings = get_embeddings(gemini_key, openai_key)
     is_fake = type(embeddings).__name__ == "FakeEmbeddings"
@@ -143,16 +155,74 @@ def _rerank(docs: list[Document], query: str) -> list[Document]:
     return result
 
 
+def expand_context(docs: list[Document], vs: Chroma, window: int = 3) -> list[Document]:
+    """
+    Với mỗi chunk được retrieve, lấy thêm các chunk liền kề (±window theo chunk_index)
+    cùng source từ ChromaDB. Giúp lấy đủ nội dung khi đoạn văn bị tách thành nhiều chunk.
+    """
+    from collections import defaultdict
+
+    if not docs:
+        return docs
+
+    # Gom chunk_index theo từng source
+    source_ranges: dict[str, tuple[int, int]] = {}
+    for d in docs:
+        meta = d.metadata or {}
+        source = meta.get("source", "")
+        raw_idx = meta.get("chunk_index")
+        if not source or raw_idx is None:
+            continue
+        idx = int(raw_idx)
+        if source in source_ranges:
+            lo, hi = source_ranges[source]
+            source_ranges[source] = (min(lo, idx), max(hi, idx))
+        else:
+            source_ranges[source] = (idx, idx)
+
+    # Với mỗi source, fetch chunk trong khoảng [lo-window, hi+window]
+    extra: list[Document] = []
+    for source, (lo, hi) in source_ranges.items():
+        min_idx = max(0, lo - window)
+        max_idx = hi + window
+        try:
+            data = vs.get(
+                where={"$and": [
+                    {"source": {"$eq": source}},
+                    {"chunk_index": {"$gte": min_idx}},
+                    {"chunk_index": {"$lte": max_idx}},
+                ]},
+                include=["documents", "metadatas"],
+            )
+            for content, meta in zip(data.get("documents") or [], data.get("metadatas") or []):
+                if content:
+                    extra.append(Document(page_content=content, metadata=meta or {}))
+        except Exception:
+            pass
+
+    # Merge + dedup theo (source, chunk_index), giữ thứ tự chunk_index
+    seen: set[tuple] = set()
+    merged: list[Document] = []
+    for d in docs + extra:
+        meta = d.metadata or {}
+        key = (meta.get("source", ""), int(meta.get("chunk_index", -1)))
+        if key not in seen:
+            seen.add(key)
+            merged.append(d)
+
+    merged.sort(key=lambda d: (
+        (d.metadata or {}).get("source", ""),
+        int((d.metadata or {}).get("chunk_index", 0)),
+    ))
+    return merged
+
+
 def format_docs(docs: list[Document], query: str = "") -> str:
     if query:
         docs = _rerank(docs, query)
     parts = []
     for d in docs:
-        meta    = d.metadata or {}
-        source  = meta.get("source", "unknown")
-        section = meta.get("section", "")
-        header  = f"[Nguồn: {source}]" + (f" [Mục: {section}]" if section else "")
-        parts.append(f"{header}\n{d.page_content}")
+        parts.append(d.page_content)
     return "\n\n---\n\n".join(parts)
 
 
@@ -168,6 +238,7 @@ def build_chain(model: str = "gemini-2.5-flash", gemini_key: str | None = None, 
         raise ValueError("Gemini API key hoặc OpenAI API key là bắt buộc.")
 
     retriever = get_retriever(gemini_key=gemini_key, openai_key=openai_key, source_filter=source_filter or None)
+    vs = get_vectorstore(gemini_key=gemini_key, openai_key=openai_key)
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", SYSTEM_PROMPT),
@@ -176,6 +247,7 @@ def build_chain(model: str = "gemini-2.5-flash", gemini_key: str | None = None, 
 
     def format_with_query(input_dict: dict) -> str:
         docs = retriever.invoke(input_dict["question"])
+        docs = expand_context(docs, vs)
         return format_docs(docs, query=input_dict["question"])
 
     from langchain_core.runnables import RunnableLambda

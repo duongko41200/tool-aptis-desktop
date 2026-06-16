@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from agent import build_chain, get_retriever, get_vectorstore
+from agent import build_chain, get_retriever, get_vectorstore, expand_context
 from ingest import ingest_url, ingest_url_with_flow
 
 app = FastAPI(title="Aptis RAG API", version="2.0.0")
@@ -77,13 +77,14 @@ async def chat(req: ChatRequest):
     try:
         chain, retriever = build_chain(req.model, gemini_key=req.gemini_key, openai_key=req.openai_key, source_filter=req.source_filter or None)
         docs    = await asyncio.to_thread(retriever.invoke, req.question)
+        docs    = expand_context(docs, get_vectorstore(gemini_key=req.gemini_key, openai_key=req.openai_key))
         sources = [
             {
                 "title":   (d.metadata or {}).get("title") or (d.metadata or {}).get("source") or "Nguồn không rõ",
                 "url":     (d.metadata or {}).get("source", ""),
-                "snippet": d.page_content[:220],
+                "snippet": d.page_content[:300],
             }
-            for d in docs[:3]
+            for d in docs[:5]
         ]
         answer = await asyncio.to_thread(chain.invoke, req.question)
         return {"answer": answer, "sources": sources}
@@ -101,13 +102,14 @@ async def chat_stream(req: ChatRequest):
             chain, retriever = build_chain(req.model, gemini_key=req.gemini_key, openai_key=req.openai_key, source_filter=req.source_filter or None)
 
             docs = await asyncio.to_thread(retriever.invoke, req.question)
+            docs = expand_context(docs, get_vectorstore(gemini_key=req.gemini_key, openai_key=req.openai_key))
             sources = [
                 {
                     "title":   (d.metadata or {}).get("title") or (d.metadata or {}).get("source") or "Nguồn không rõ",
                     "url":     (d.metadata or {}).get("source", ""),
-                    "snippet": d.page_content[:220],
+                    "snippet": d.page_content[:300],
                 }
-                for d in docs[:3]
+                for d in docs[:5]
             ]
             yield f"data: {json.dumps({'type': 'sources', 'sources': sources})}\n\n"
 

@@ -33,12 +33,103 @@ function nowTs() {
   return new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
 }
 
-function RichText({ text }: { text: string }) {
-  const html = text
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\n\n/g, '<br/><br/>')
-    .replace(/\n(\d+\.)/g, '<br/>$1');
-  return <span dangerouslySetInnerHTML={{ __html: html }} />;
+function parseInline(text: string): React.ReactNode[] {
+  const parts = text.split(/(\*\*[^*\n]+\*\*|\*[^*\n]+\*|`[^`\n]+`)/g);
+  return parts.map((p, i) => {
+    if (p.startsWith('**') && p.endsWith('**')) return <strong key={i}>{p.slice(2, -2)}</strong>;
+    if (p.startsWith('*') && p.endsWith('*')) return <em key={i} style={{ fontStyle: 'italic' }}>{p.slice(1, -1)}</em>;
+    if (p.startsWith('`') && p.endsWith('`')) return (
+      <code key={i} style={{ fontFamily: 'var(--font-mono)', fontSize: '0.88em', background: 'rgba(0,0,0,0.18)', borderRadius: 4, padding: '1px 5px' }}>{p.slice(1, -1)}</code>
+    );
+    return p;
+  });
+}
+
+function RichText({ text, isUser }: { text: string; isUser?: boolean }) {
+  const blocks = text.split(/\n{2,}/);
+  const nodes: React.ReactNode[] = [];
+
+  for (let bi = 0; bi < blocks.length; bi++) {
+    const block = blocks[bi].trim();
+    if (!block) continue;
+
+    // Heading
+    const h3 = block.match(/^###\s+(.+)/);
+    const h2 = block.match(/^##\s+(.+)/);
+    const h1 = block.match(/^#\s+(.+)/);
+    if (h1 || h2 || h3) {
+      const lvl = h3 ? 3 : h2 ? 2 : 1;
+      const content = (h3 || h2 || h1)![1];
+      const sz = lvl === 1 ? 16 : lvl === 2 ? 14.5 : 13.5;
+      nodes.push(
+        <div key={bi} style={{ fontWeight: 800, fontSize: sz, marginTop: bi === 0 ? 0 : 10, marginBottom: 4, letterSpacing: '-0.01em', color: isUser ? 'inherit' : 'var(--accent)' }}>
+          {parseInline(content)}
+        </div>
+      );
+      continue;
+    }
+
+    // Bullet list (lines starting with - or *)
+    const bulletLines = block.split('\n').filter(l => /^[-*]\s+/.test(l.trim()));
+    if (bulletLines.length > 0 && bulletLines.length === block.split('\n').filter(l => l.trim()).length) {
+      nodes.push(
+        <ul key={bi} style={{ margin: '6px 0', paddingLeft: 20, listStyle: 'none' }}>
+          {block.split('\n').filter(l => l.trim()).map((line, li) => (
+            <li key={li} style={{ display: 'flex', gap: 7, marginBottom: 3, lineHeight: 1.6 }}>
+              <span style={{ flexShrink: 0, marginTop: 6, width: 5, height: 5, borderRadius: '50%', background: isUser ? 'currentColor' : 'var(--accent)', display: 'inline-block' }} />
+              <span>{parseInline(line.replace(/^[-*]\s+/, ''))}</span>
+            </li>
+          ))}
+        </ul>
+      );
+      continue;
+    }
+
+    // Numbered list
+    const numLines = block.split('\n').filter(l => /^\d+\.\s+/.test(l.trim()));
+    if (numLines.length > 0 && numLines.length === block.split('\n').filter(l => l.trim()).length) {
+      nodes.push(
+        <ol key={bi} style={{ margin: '6px 0', paddingLeft: 20, listStyleType: 'none', counterReset: 'item' }}>
+          {block.split('\n').filter(l => l.trim()).map((line, li) => {
+            const match = line.match(/^(\d+)\.\s+(.*)/);
+            return (
+              <li key={li} style={{ display: 'flex', gap: 8, marginBottom: 3, lineHeight: 1.6 }}>
+                <span style={{ flexShrink: 0, fontWeight: 700, minWidth: 18, color: isUser ? 'inherit' : 'var(--accent)', opacity: 0.85 }}>{match?.[1]}.</span>
+                <span>{parseInline(match?.[2] ?? line)}</span>
+              </li>
+            );
+          })}
+        </ol>
+      );
+      continue;
+    }
+
+    // Code block (all lines start with 4 spaces or block has ``` markers)
+    if (block.startsWith('```')) {
+      const code = block.replace(/^```[^\n]*\n?/, '').replace(/```$/, '').trim();
+      nodes.push(
+        <pre key={bi} style={{ margin: '6px 0', padding: '10px 12px', borderRadius: 8, background: 'rgba(0,0,0,0.25)', fontFamily: 'var(--font-mono)', fontSize: 12, lineHeight: 1.6, overflowX: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+          {code}
+        </pre>
+      );
+      continue;
+    }
+
+    // Normal paragraph — inline line breaks preserved
+    const lines = block.split('\n');
+    nodes.push(
+      <p key={bi} style={{ margin: bi === 0 ? '0 0 6px' : '6px 0', lineHeight: 1.7 }}>
+        {lines.map((line, li) => (
+          <span key={li}>
+            {parseInline(line)}
+            {li < lines.length - 1 && <br />}
+          </span>
+        ))}
+      </p>
+    );
+  }
+
+  return <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>{nodes}</div>;
 }
 
 /* ── SourceCard ──────────────────────────────────────────── */
@@ -117,7 +208,7 @@ function ChatBubble({ msg }: { msg: Message }) {
             boxShadow: 'var(--sh-md), inset 0 1px 0 rgba(255,255,255,0.6)',
           }),
       }}>
-        <RichText text={msg.text} />
+        <RichText text={msg.text} isUser={isUser} />
       </div>
 
       {/* Sources */}
