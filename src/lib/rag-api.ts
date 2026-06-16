@@ -86,11 +86,12 @@ export async function ragChatStream(
   onSources: (sources: RagSource[]) => void,
   signal?: AbortSignal,
   geminiKey?: string,
+  sourceFilter?: string[],
 ): Promise<void> {
   const r = await fetch(`${BASE}/chat/stream`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ question, history: [], model, openai_key: openaiKey ?? null, gemini_key: geminiKey ?? null }),
+    body: JSON.stringify({ question, history: [], model, openai_key: openaiKey ?? null, gemini_key: geminiKey ?? null, source_filter: sourceFilter && sourceFilter.length > 0 ? sourceFilter : null }),
     signal,
   });
   if (!r.ok) {
@@ -206,6 +207,46 @@ export interface FlowRunEdge {
   source: string;
   target: string;
   sourceHandle?: string | null;
+}
+
+export async function ragIngestFlowStream(
+  url: string,
+  nodes: FlowRunNode[],
+  edges: FlowRunEdge[],
+  onNode: (nodeId: string, nodeType: string) => void,
+  onDone: (chunks: number) => void,
+  onError: (msg: string) => void,
+  openaiKey?: string,
+  geminiKey?: string,
+  cookies?: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  const r = await fetch(`${BASE}/ingest/flow/stream`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url, nodes, edges, openai_key: openaiKey ?? null, gemini_key: geminiKey ?? null, cookies: cookies || null }),
+    signal,
+  });
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({ detail: r.statusText }));
+    throw new Error(err.detail ?? `HTTP ${r.status}`);
+  }
+  const reader = r.body!.getReader();
+  const decoder = new TextDecoder();
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    const text = decoder.decode(value, { stream: true });
+    for (const line of text.split('\n')) {
+      if (!line.startsWith('data: ')) continue;
+      try {
+        const data = JSON.parse(line.slice(6));
+        if (data.type === 'node') onNode(data.node_id, data.node_type);
+        if (data.type === 'done') onDone(data.chunks);
+        if (data.type === 'error') onError(data.error);
+      } catch { /* skip */ }
+    }
+  }
 }
 
 export async function ragIngestFlow(

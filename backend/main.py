@@ -40,6 +40,7 @@ class ChatRequest(BaseModel):
     model: str = "gemini-2.5-flash"
     openai_key: str | None = None
     gemini_key: str | None = None
+    source_filter: list[str] | None = None
 
 
 class IngestRequest(BaseModel):
@@ -74,7 +75,7 @@ async def validate_openai_key(body: dict):
 @app.post("/chat")
 async def chat(req: ChatRequest):
     try:
-        chain, retriever = build_chain(req.model, gemini_key=req.gemini_key, openai_key=req.openai_key)
+        chain, retriever = build_chain(req.model, gemini_key=req.gemini_key, openai_key=req.openai_key, source_filter=req.source_filter or None)
         docs    = await asyncio.to_thread(retriever.invoke, req.question)
         sources = [
             {
@@ -97,7 +98,7 @@ async def chat_stream(req: ChatRequest):
 
     async def generate():
         try:
-            chain, retriever = build_chain(req.model, gemini_key=req.gemini_key, openai_key=req.openai_key)
+            chain, retriever = build_chain(req.model, gemini_key=req.gemini_key, openai_key=req.openai_key, source_filter=req.source_filter or None)
 
             docs = await asyncio.to_thread(retriever.invoke, req.question)
             sources = [
@@ -205,6 +206,7 @@ class FlowEdge(BaseModel):
     id: str
     source: str
     target: str
+    sourceHandle: str | None = None
 
 
 class FlowIngestRequest(BaseModel):
@@ -232,6 +234,69 @@ async def ingest_flow(req: FlowIngestRequest):
     except Exception as e:
         import traceback
         raise HTTPException(status_code=500, detail=f"{type(e).__name__}: {e}\n\n{traceback.format_exc()}")
+
+
+@app.post("/ingest/flow/stream")
+async def ingest_flow_stream(req: FlowIngestRequest):
+    import asyncio as _asyncio
+    import json as _json
+
+    queue: _asyncio.Queue = _asyncio.Queue()
+
+    async def on_node(node_id: str, node_type: str):
+        await queue.put({"type": "node", "node_id": node_id, "node_type": node_type})
+
+    async def run():
+        try:
+            from ingest import _execute_flow, _chunk_docs
+            from agent import get_vectorstore
+            import uuid
+            docs = await _execute_flow(
+                req.url,
+                [n.model_dump() for n in req.nodes],
+                [e.model_dump() for e in req.edges],
+                req.cookies,
+                req.gemini_key,
+                req.openai_key,
+                on_node=on_node,
+            )
+            final_chunks = _chunk_docs(docs) if docs else []
+            final_chunks = [c for c in final_chunks if len(c.page_content.strip()) >= 50]
+            if final_chunks:
+                vs = get_vectorstore(gemini_key=req.gemini_key, openai_key=req.openai_key)
+                try:
+                    existing = vs.get(where={"source": req.url})
+                    if existing and existing.get("ids"):
+                        vs.delete(ids=existing["ids"])
+                except Exception:
+                    pass
+                for i, chunk in enumerate(final_chunks):
+                    m = chunk.metadata
+                    m["source"] = m.get("source") or req.url
+                    m["title"] = m.get("title") or req.url
+                    m["chunk_index"] = i
+                    m.setdefault("section", "")
+                for chunk in final_chunks:
+                    chunk.metadata = {k: (v if v is not None else "") for k, v in chunk.metadata.items()}
+                vs.add_documents(final_chunks, ids=[str(uuid.uuid4()) for _ in final_chunks])
+            await queue.put({"type": "done", "chunks": len(final_chunks)})
+        except Exception as e:
+            await queue.put({"type": "error", "error": str(e)})
+
+    _asyncio.create_task(run())
+
+    async def generate():
+        while True:
+            event = await queue.get()
+            yield f"data: {_json.dumps(event)}\n\n"
+            if event["type"] in ("done", "error"):
+                break
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @app.post("/ingest/url")

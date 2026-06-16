@@ -71,16 +71,24 @@ def get_vectorstore(gemini_key: str | None = None, openai_key: str | None = None
     )
 
 
-def get_retriever(k: int = 6, gemini_key: str | None = None, openai_key: str | None = None):
+def get_retriever(k: int = 6, gemini_key: str | None = None, openai_key: str | None = None,
+                  source_filter: list[str] | None = None):
     embeddings = get_embeddings(gemini_key, openai_key)
     is_fake = type(embeddings).__name__ == "FakeEmbeddings"
     vector_weight = 0.0 if is_fake else 0.7
     bm25_weight = 1.0 if is_fake else 0.3
 
     vs = get_vectorstore(gemini_key, openai_key, embeddings=embeddings)
-    vector_ret = vs.as_retriever(search_kwargs={"k": k})
 
-    data = vs.get()
+    # Vector retriever — lọc theo source nếu có
+    if source_filter:
+        chroma_filter = {"source": {"$in": source_filter}}
+        vector_ret = vs.as_retriever(search_kwargs={"k": k, "filter": chroma_filter})
+        data = vs.get(where=chroma_filter)
+    else:
+        vector_ret = vs.as_retriever(search_kwargs={"k": k})
+        data = vs.get()
+
     raw_docs = data.get("documents") or []
     if not raw_docs:
         return vector_ret
@@ -148,7 +156,8 @@ def format_docs(docs: list[Document], query: str = "") -> str:
     return "\n\n---\n\n".join(parts)
 
 
-def build_chain(model: str = "gemini-2.5-flash", gemini_key: str | None = None, openai_key: str | None = None):
+def build_chain(model: str = "gemini-2.5-flash", gemini_key: str | None = None, openai_key: str | None = None,
+                source_filter: list[str] | None = None):
     if gemini_key:
         from langchain_google_genai import ChatGoogleGenerativeAI
         llm = ChatGoogleGenerativeAI(google_api_key=gemini_key, model=model, temperature=0)
@@ -158,7 +167,7 @@ def build_chain(model: str = "gemini-2.5-flash", gemini_key: str | None = None, 
     else:
         raise ValueError("Gemini API key hoặc OpenAI API key là bắt buộc.")
 
-    retriever = get_retriever(gemini_key=gemini_key, openai_key=openai_key)
+    retriever = get_retriever(gemini_key=gemini_key, openai_key=openai_key, source_filter=source_filter or None)
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", SYSTEM_PROMPT),

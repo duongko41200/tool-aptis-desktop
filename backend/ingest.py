@@ -183,6 +183,7 @@ async def _execute_flow(
     cookies: str | None = None,
     gemini_key: str | None = None,
     openai_key: str | None = None,
+    on_node=None,
 ) -> list[Document]:
     """
     Chạy automation workflow bằng Playwright.
@@ -261,6 +262,8 @@ async def _execute_flow(
                 break
 
             ntype = node["data"].get("type", "")
+            if on_node:
+                await on_node(current_id, ntype)
             nd    = node["data"]
             cont_on_err = bool(nd.get("continue_on_error", True))
 

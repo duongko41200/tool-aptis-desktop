@@ -7,18 +7,21 @@ import {
   addEdge,
   useNodesState,
   useEdgesState,
+  getBezierPath,
   type Node,
   type Edge,
   type Connection,
   type NodeTypes,
+  type EdgeTypes,
   type NodeProps,
+  type EdgeProps,
   type ReactFlowInstance,
   Handle,
   Position,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import Icon from '../common/Icon';
-import { ragIngestFlow } from '../../lib/rag-api';
+import { ragIngestFlowStream } from '../../lib/rag-api';
 
 // ─── Node catalogue ───────────────────────────────────────────────────────────
 
@@ -63,6 +66,85 @@ const NODE_ICONS: Record<string, string> = {
   chunk_text: '⋮', embedding: '⬡', save_chroma: '⬢', export_md: '↓',
 };
 
+// ─── Custom edge with delete button ──────────────────────────────────────────
+
+function DeletableEdge({
+  id, sourceX, sourceY, targetX, targetY,
+  sourcePosition, targetPosition, selected, markerEnd, style,
+}: EdgeProps) {
+  const [hovered, setHovered] = useState(false);
+  const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [edgePath, labelX, labelY] = getBezierPath({ sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition });
+
+  const onEnter = () => {
+    if (leaveTimer.current) clearTimeout(leaveTimer.current);
+    setHovered(true);
+  };
+  const onLeave = () => {
+    leaveTimer.current = setTimeout(() => setHovered(false), 160);
+  };
+
+  const showBtn = hovered || selected;
+
+  return (
+    <>
+      {/* Wide invisible hitbox — makes hover much easier to hit */}
+      <path
+        d={edgePath}
+        fill="none"
+        strokeWidth={28}
+        stroke="transparent"
+        style={{ cursor: 'pointer' }}
+        onMouseEnter={onEnter}
+        onMouseLeave={onLeave}
+      />
+      {/* Visible path */}
+      <path
+        d={edgePath}
+        fill="none"
+        markerEnd={markerEnd}
+        style={{
+          ...style,
+          stroke: selected ? '#7aab30' : hovered ? '#aacb4f' : 'rgba(80,110,40,0.55)',
+          strokeWidth: selected || hovered ? 2.5 : 2,
+          transition: 'stroke 120ms, stroke-width 120ms',
+          pointerEvents: 'none',
+        }}
+      />
+      {/* Delete button — always rendered when showBtn, just opacity animated */}
+      <foreignObject
+        x={labelX - 14}
+        y={labelY - 14}
+        width={28}
+        height={28}
+        style={{ overflow: 'visible', pointerEvents: showBtn ? 'all' : 'none', cursor: 'pointer' }}
+        onMouseEnter={onEnter}
+        onMouseLeave={onLeave}
+      >
+        <div
+          title="Xóa kết nối này"
+          onClick={(e) => {
+            e.stopPropagation();
+            window.dispatchEvent(new CustomEvent('flow:delete-edge', { detail: id }));
+          }}
+          style={{
+            width: 28, height: 28, borderRadius: '50%',
+            background: 'rgba(217,90,60,0.92)',
+            border: '2.5px solid #f0ede4',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: '#fff', fontSize: 12, fontWeight: 900,
+            boxShadow: '0 2px 10px rgba(0,0,0,0.5)',
+            userSelect: 'none',
+            opacity: showBtn ? 1 : 0,
+            transform: showBtn ? 'scale(1)' : 'scale(0.6)',
+            transition: 'opacity 120ms, transform 120ms',
+          }}
+        >✕</div>
+      </foreignObject>
+    </>
+  );
+}
+
 // ─── Custom node ─────────────────────────────────────────────────────────────
 
 function AutomationNodeComp({ data, selected }: NodeProps) {
@@ -89,8 +171,8 @@ function AutomationNodeComp({ data, selected }: NodeProps) {
     /* outer wrapper has NO overflow:hidden so handles are never clipped */
     <div style={{
       position: 'relative',
-      background: selected ? 'rgba(30,42,22,0.98)' : 'rgba(18,26,14,0.95)',
-      border: `1.5px solid ${selected ? def.color + 'cc' : 'rgba(255,255,255,0.10)'}`,
+      background: (data.isRunning as boolean) ? 'rgba(40,60,20,0.98)' : selected ? 'rgba(30,42,22,0.98)' : 'rgba(18,26,14,0.95)',
+      border: `1.5px solid ${(data.isRunning as boolean) ? 'rgba(217,232,157,0.8)' : selected ? def.color + 'cc' : 'rgba(255,255,255,0.10)'}`,
       borderRadius: 16,
       minWidth: 182,
       backdropFilter: 'blur(18px)',
@@ -100,6 +182,7 @@ function AutomationNodeComp({ data, selected }: NodeProps) {
         : '0 6px 20px rgba(2,8,1,0.5)',
       fontFamily: "'Plus Jakarta Sans', sans-serif",
       transition: 'box-shadow 200ms, border-color 200ms',
+      animation: (data.isRunning as boolean) ? 'node-pulse 0.9s ease-in-out infinite' : 'none',
     }}>
 
       {/* ── Target handle (top, input) ── */}
@@ -143,6 +226,13 @@ function AutomationNodeComp({ data, selected }: NodeProps) {
         }}>
           {def.category}
         </div>
+        {(data.isRunning as boolean) && (
+          <div style={{
+            width: 14, height: 14, borderRadius: '50%', flexShrink: 0,
+            border: '2px solid rgba(217,232,157,0.8)', borderTopColor: 'transparent',
+            animation: 'rag-spin 0.6s linear infinite',
+          }} />
+        )}
       </div>
 
       {/* ── Detail row ── */}
@@ -511,14 +601,34 @@ export default function AutomationFlowBuilder({ onClose, onComplete, openaiKey, 
   const [cookiePos, setCookiePos] = useState({ top: 0, right: 0 });
   const cookieBtnRef = useRef<HTMLDivElement>(null);
   const [running, setRunning] = useState(false);
+  const [runningNodeId, setRunningNodeId] = useState<string | null>(null);
   const [runStatus, setRunStatus] = useState<{ type: 'ok' | 'error'; msg: string } | null>(null);
+  // runningNodeId is used to track which node is active for potential future display
+  void runningNodeId;
+
+  const STORAGE_KEY = 'aptis_flows';
+  interface SavedFlow { name: string; url: string; nodes: Node[]; edges: Edge[]; savedAt: string }
+
+  const loadSavedFlows = (): SavedFlow[] => {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]'); } catch { return []; }
+  };
+
+  const [savedFlows, setSavedFlows] = useState<SavedFlow[]>(loadSavedFlows);
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [showLoadMenu, setShowLoadMenu] = useState(false);
+  const [flowName, setFlowName] = useState('');
+  const loadMenuRef = useRef<HTMLDivElement>(null);
+  const [loadMenuPos, setLoadMenuPos] = useState({ top: 0, left: 0 });
 
   const nodeTypes = useMemo<NodeTypes>(() => ({ automation: AutomationNodeComp }), []);
+  const edgeTypes = useMemo<EdgeTypes>(() => ({ deletable: DeletableEdge }), []);
 
   const onConnect = useCallback(
     (connection: Connection) =>
       setEdges(eds => addEdge({
-        ...connection, animated: true,
+        ...connection,
+        type: 'deletable',
+        animated: true,
         style: { stroke: 'rgba(80,110,40,0.55)', strokeWidth: 2 },
       }, eds)),
     [setEdges],
@@ -574,6 +684,15 @@ export default function AutomationFlowBuilder({ onClose, onComplete, openaiKey, 
     }
   }, [showCookies]);
 
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const edgeId = (e as CustomEvent<string>).detail;
+      setEdges(eds => eds.filter(ed => ed.id !== edgeId));
+    };
+    window.addEventListener('flow:delete-edge', handler);
+    return () => window.removeEventListener('flow:delete-edge', handler);
+  }, [setEdges]);
+
   // Delete/Backspace khi node đang được chọn
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -593,22 +712,38 @@ export default function AutomationFlowBuilder({ onClose, onComplete, openaiKey, 
   const handleRun = async () => {
     if (!url.trim()) { setRunStatus({ type: 'error', msg: 'Nhập URL trước khi chạy' }); return; }
     if (nodes.length === 0) { setRunStatus({ type: 'error', msg: 'Thêm ít nhất một node' }); return; }
-    setRunning(true); setRunStatus(null);
+    setRunning(true); setRunStatus(null); setRunningNodeId(null);
+
+    const setNodeRunning = (nodeId: string | null) => {
+      setRunningNodeId(nodeId);
+      setNodes(nds => nds.map(n => ({ ...n, data: { ...n.data, isRunning: n.id === nodeId } })));
+    };
+
     try {
-      const res = await ragIngestFlow(
+      await ragIngestFlowStream(
         url.trim(),
         nodes.map(n => ({ id: n.id, data: n.data as Record<string, unknown> })),
         edges.map(e => ({ id: e.id, source: e.source, target: e.target, sourceHandle: e.sourceHandle ?? null })),
+        (nodeId) => setNodeRunning(nodeId),
+        (chunks) => {
+          setNodeRunning(null);
+          setRunStatus({ type: 'ok', msg: `Xong! Lưu được ${chunks} chunks` });
+          onComplete(url.trim(), chunks);
+        },
+        (errMsg) => {
+          setNodeRunning(null);
+          setRunStatus({ type: 'error', msg: errMsg });
+        },
         openaiKey,
         geminiKey,
         cookies.trim() || undefined,
       );
-      setRunStatus({ type: 'ok', msg: `Xong! Lưu được ${res.chunks} chunks` });
-      onComplete(url.trim(), res.chunks);
     } catch (e) {
+      setNodeRunning(null);
       setRunStatus({ type: 'error', msg: e instanceof Error ? e.message : 'Lỗi không xác định' });
     } finally {
       setRunning(false);
+      setNodes(nds => nds.map(n => ({ ...n, data: { ...n.data, isRunning: false } })));
     }
   };
 
@@ -630,12 +765,44 @@ export default function AutomationFlowBuilder({ onClose, onComplete, openaiKey, 
           const d = JSON.parse(ev.target?.result as string);
           if (d.url) setUrl(d.url);
           if (d.nodes) setNodes(d.nodes);
-          if (d.edges) setEdges(d.edges);
+          if (d.edges) setEdges((d.edges as Edge[]).map((e: Edge) => ({ ...e, type: 'deletable' })));
         } catch { /* invalid */ }
       };
       reader.readAsText(file);
     };
     input.click();
+  };
+
+  const handleSave = () => {
+    const name = flowName.trim() || `Flow ${new Date().toLocaleString('vi-VN')}`;
+    const entry: SavedFlow = { name, url, nodes, edges, savedAt: new Date().toISOString() };
+    const existing = loadSavedFlows();
+    const idx = existing.findIndex(f => f.name === name);
+    if (idx >= 0) existing[idx] = entry; else existing.unshift(entry);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(existing));
+    setSavedFlows([...existing]);
+    setShowSaveDialog(false);
+    setFlowName('');
+    setRunStatus({ type: 'ok', msg: `Đã lưu "${name}"` });
+  };
+
+  const handleLoad = (flow: SavedFlow) => {
+    setUrl(flow.url);
+    setNodes(flow.nodes);
+    setEdges(flow.edges.map(e => ({ ...e, type: 'deletable' })));
+    setShowLoadMenu(false);
+    setRunStatus({ type: 'ok', msg: `Đã tải "${flow.name}"` });
+  };
+
+  const handleDeleteSaved = (name: string) => {
+    const updated = loadSavedFlows().filter(f => f.name !== name);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    setSavedFlows(updated);
+  };
+
+  const handleClear = () => {
+    setNodes([]); setEdges([]); setUrl(''); setCookies('');
+    setSelectedNode(null); setRunStatus(null);
   };
 
   return (
@@ -667,6 +834,7 @@ export default function AutomationFlowBuilder({ onClose, onComplete, openaiKey, 
       <style>{`
         @keyframes flow-backdrop { from { opacity: 0; } to { opacity: 1; } }
         @keyframes flow-enter { from { transform: translateY(16px) scale(0.97); opacity: 0; } to { transform: none; opacity: 1; } }
+        @keyframes node-pulse { 0%,100%{box-shadow:0 0 0 0 rgba(217,232,157,0.6),0 0 0 3px rgba(217,232,157,0.3)} 50%{box-shadow:0 0 0 8px rgba(217,232,157,0),0 0 0 3px rgba(217,232,157,0.5)} }
         .flow-wrap .react-flow { background: transparent !important; }
         .flow-wrap .react-flow__attribution { display: none !important; }
         .flow-wrap .react-flow__controls {
@@ -689,16 +857,18 @@ export default function AutomationFlowBuilder({ onClose, onComplete, openaiKey, 
         .flow-wrap .react-flow__edge-path { stroke: rgba(80,110,40,0.5) !important; }
         .flow-wrap .react-flow__edge.selected .react-flow__edge-path { stroke: #7aab30 !important; stroke-width: 2.5px !important; }
         .flow-wrap .react-flow__handle {
-          transition: transform 140ms, box-shadow 140ms !important;
+          transition: box-shadow 140ms, filter 140ms !important;
           opacity: 1 !important;
         }
         .flow-wrap .react-flow__handle:hover {
-          transform: scale(1.55) !important;
-          filter: brightness(1.35) !important;
+          box-shadow: 0 0 0 5px rgba(255,255,255,0.22), 0 0 18px rgba(255,255,255,0.25) !important;
+          filter: brightness(1.5) !important;
         }
-        .flow-wrap .react-flow__handle-connecting { transform: scale(1.45) !important; }
+        .flow-wrap .react-flow__handle-connecting {
+          box-shadow: 0 0 0 4px rgba(255,255,255,0.28) !important;
+        }
         .flow-wrap .react-flow__handle-valid {
-          transform: scale(1.6) !important;
+          box-shadow: 0 0 0 6px rgba(111,174,90,0.5), 0 0 18px rgba(111,174,90,0.4) !important;
           filter: brightness(1.6) !important;
         }
         .flow-url-input::placeholder { color: rgba(255,255,255,0.3); }
@@ -761,7 +931,7 @@ export default function AutomationFlowBuilder({ onClose, onComplete, openaiKey, 
           />
         </div>
 
-        {/* Cookie toggle + input */}
+        {/* Cookie toggle */}
         <div ref={cookieBtnRef} style={{ position: 'relative' }}>
           <button
             onClick={() => setShowCookies(v => !v)}
@@ -778,65 +948,6 @@ export default function AutomationFlowBuilder({ onClose, onComplete, openaiKey, 
           >
             🍪 {cookies.trim() ? 'Cookie đã có' : 'Cookie'}
           </button>
-
-          {showCookies && (
-            <div style={{
-              position: 'fixed', top: cookiePos.top, right: cookiePos.right, zIndex: 9999,
-              width: 420, padding: '14px 14px 12px',
-              background: 'rgba(22,32,18,0.97)',
-              backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
-              border: '1px solid rgba(255,255,255,0.12)',
-              borderRadius: 14,
-              boxShadow: '0 16px 40px rgba(4,10,2,0.7)',
-            }}>
-              <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(217,232,157,0.6)', marginBottom: 8 }}>
-                Cookie (copy từ DevTools → Application → Cookies)
-              </div>
-              <textarea
-                value={cookies}
-                onChange={e => setCookies(e.target.value)}
-                placeholder={'session=abc123; token=xyz; auth=...'}
-                rows={4}
-                style={{
-                  width: '100%', padding: '9px 11px', borderRadius: 10,
-                  background: 'rgba(255,255,255,0.07)',
-                  border: '1px solid rgba(255,255,255,0.14)',
-                  color: '#d9e89d', fontSize: 11.5, outline: 'none', resize: 'vertical',
-                  fontFamily: "'JetBrains Mono', monospace",
-                  lineHeight: 1.6, boxSizing: 'border-box',
-                } as React.CSSProperties}
-                onFocus={e => { e.currentTarget.style.borderColor = 'rgba(217,232,157,0.4)'; }}
-                onBlur={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.14)'; }}
-              />
-              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                <div style={{ flex: 1, fontSize: 10.5, color: 'rgba(255,255,255,0.3)', lineHeight: 1.55 }}>
-                  Playwright sẽ inject cookie vào browser trước khi mở URL.
-                </div>
-                <button
-                  onClick={() => { setCookies(''); }}
-                  style={{
-                    padding: '4px 10px', borderRadius: 8, border: 'none', cursor: 'pointer',
-                    background: 'rgba(217,90,60,0.15)', color: '#d98a6a',
-                    fontSize: 11, fontWeight: 700, flexShrink: 0,
-                    fontFamily: "'Plus Jakarta Sans', sans-serif",
-                  }}
-                >
-                  Xóa
-                </button>
-                <button
-                  onClick={() => setShowCookies(false)}
-                  style={{
-                    padding: '4px 10px', borderRadius: 8, border: 'none', cursor: 'pointer',
-                    background: 'rgba(170,203,79,0.15)', color: '#aacb4f',
-                    fontSize: 11, fontWeight: 700, flexShrink: 0,
-                    fontFamily: "'Plus Jakarta Sans', sans-serif",
-                  }}
-                >
-                  Xong
-                </button>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Close */}
@@ -934,6 +1045,7 @@ export default function AutomationFlowBuilder({ onClose, onComplete, openaiKey, 
             onInit={setRfInstance}
             onNodeClick={onNodeClick} onPaneClick={onPaneClick}
             nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
             fitView
             fitViewOptions={{ maxZoom: 0.85, padding: 0.3 }}
             defaultViewport={{ x: 60, y: 40, zoom: 0.75 }}
@@ -1030,6 +1142,41 @@ export default function AutomationFlowBuilder({ onClose, onComplete, openaiKey, 
           {running ? 'Đang chạy...' : 'Chạy flow'}
         </button>
 
+        {/* Save */}
+        <button
+          onClick={() => { setFlowName(''); setShowSaveDialog(true); }}
+          className="btn btn-ghost btn-sm" style={{ fontSize: 12, gap: 5 }}
+        >
+          💾 Lưu
+        </button>
+
+        {/* Load */}
+        <div ref={loadMenuRef} style={{ position: 'relative' }}>
+          <button
+            onClick={() => {
+              if (loadMenuRef.current) {
+                const r = loadMenuRef.current.getBoundingClientRect();
+                setLoadMenuPos({ top: r.top - 8, left: r.left });
+              }
+              setShowLoadMenu(v => !v);
+            }}
+            className="btn btn-ghost btn-sm" style={{ fontSize: 12, gap: 5 }}
+          >
+            📂 Tải ({savedFlows.length})
+          </button>
+        </div>
+
+        {/* Clear */}
+        <button
+          onClick={handleClear}
+          className="btn btn-ghost btn-sm"
+          style={{ fontSize: 12, gap: 5, color: 'rgba(217,138,106,0.8)' }}
+        >
+          🗑 Xóa sạch
+        </button>
+
+        <div style={{ width: 1, height: 18, background: 'rgba(255,255,255,0.12)', margin: '0 2px' }} />
+
         <button onClick={handleExport} className="btn btn-ghost btn-sm" style={{ fontSize: 12 }}>
           Export JSON
         </button>
@@ -1068,6 +1215,188 @@ export default function AutomationFlowBuilder({ onClose, onComplete, openaiKey, 
         </div>
       </div>
     </div>{/* end modal */}
+    {showCookies && (
+      <div style={{
+        position: 'fixed', top: cookiePos.top, right: cookiePos.right, zIndex: 9999,
+        width: 420, padding: '14px 14px 12px',
+        background: 'rgba(22,32,18,0.97)',
+        backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
+        border: '1px solid rgba(255,255,255,0.12)',
+        borderRadius: 14,
+        boxShadow: '0 16px 40px rgba(4,10,2,0.7)',
+        animation: 'flow-backdrop 150ms ease both',
+      }}>
+        <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(217,232,157,0.6)', marginBottom: 8 }}>
+          Cookie (copy từ DevTools → Application → Cookies)
+        </div>
+        <textarea
+          value={cookies}
+          onChange={e => setCookies(e.target.value)}
+          onKeyDown={e => e.stopPropagation()}
+          placeholder={'session=abc123; token=xyz; auth=...'}
+          rows={4}
+          style={{
+            width: '100%', padding: '9px 11px', borderRadius: 10,
+            background: 'rgba(255,255,255,0.07)',
+            border: '1px solid rgba(255,255,255,0.14)',
+            color: '#d9e89d', fontSize: 11.5, outline: 'none', resize: 'vertical',
+            fontFamily: "'JetBrains Mono', monospace",
+            lineHeight: 1.6, boxSizing: 'border-box',
+          } as React.CSSProperties}
+          onFocus={e => { e.currentTarget.style.borderColor = 'rgba(217,232,157,0.4)'; }}
+          onBlur={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.14)'; }}
+        />
+        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+          <div style={{ flex: 1, fontSize: 10.5, color: 'rgba(255,255,255,0.3)', lineHeight: 1.55 }}>
+            Playwright sẽ inject cookie vào browser trước khi mở URL.
+          </div>
+          <button
+            onClick={() => { setCookies(''); }}
+            style={{
+              padding: '4px 10px', borderRadius: 8, border: 'none', cursor: 'pointer',
+              background: 'rgba(217,90,60,0.15)', color: '#d98a6a',
+              fontSize: 11, fontWeight: 700, flexShrink: 0,
+              fontFamily: "'Plus Jakarta Sans', sans-serif",
+            }}
+          >
+            Xóa
+          </button>
+          <button
+            onClick={() => setShowCookies(false)}
+            style={{
+              padding: '4px 10px', borderRadius: 8, border: 'none', cursor: 'pointer',
+              background: 'rgba(170,203,79,0.15)', color: '#aacb4f',
+              fontSize: 11, fontWeight: 700, flexShrink: 0,
+              fontFamily: "'Plus Jakarta Sans', sans-serif",
+            }}
+          >
+            Xong
+          </button>
+        </div>
+      </div>
+    )}
+    {/* ── Save dialog ── */}
+    {showSaveDialog && (
+      <div style={{
+        position: 'fixed', inset: 0, zIndex: 10000,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: 'rgba(4,10,2,0.6)', backdropFilter: 'blur(4px)',
+      }} onClick={e => { if (e.target === e.currentTarget) setShowSaveDialog(false); }}>
+        <div style={{
+          width: 360, padding: '22px 22px 18px',
+          background: 'rgba(22,32,18,0.98)',
+          border: '1px solid rgba(255,255,255,0.12)',
+          borderRadius: 18, boxShadow: '0 24px 60px rgba(4,10,2,0.8)',
+          fontFamily: "'Plus Jakarta Sans', sans-serif",
+        }}>
+          <div style={{ fontSize: 14, fontWeight: 800, color: '#fff', marginBottom: 14 }}>💾 Lưu flow</div>
+          <input
+            autoFocus
+            value={flowName}
+            onChange={e => setFlowName(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') setShowSaveDialog(false); }}
+            placeholder={`Flow ${new Date().toLocaleString('vi-VN')}`}
+            style={{
+              width: '100%', padding: '9px 12px', borderRadius: 10,
+              background: 'rgba(255,255,255,0.08)',
+              border: '1px solid rgba(255,255,255,0.18)',
+              color: '#fff', fontSize: 13, outline: 'none',
+              fontFamily: "'Plus Jakarta Sans', sans-serif",
+              boxSizing: 'border-box',
+            } as React.CSSProperties}
+            onFocus={e => { e.currentTarget.style.borderColor = 'rgba(170,203,79,0.5)'; }}
+            onBlur={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.18)'; }}
+          />
+          <div style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.3)', marginTop: 6 }}>
+            Để trống → tự đặt tên theo ngày giờ
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
+            <button onClick={() => setShowSaveDialog(false)} style={{
+              padding: '7px 16px', borderRadius: 9, border: 'none', cursor: 'pointer',
+              background: 'rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.5)',
+              fontSize: 12.5, fontWeight: 700, fontFamily: "'Plus Jakarta Sans', sans-serif",
+            }}>Hủy</button>
+            <button onClick={handleSave} style={{
+              padding: '7px 18px', borderRadius: 9, border: 'none', cursor: 'pointer',
+              background: 'rgba(170,203,79,0.25)', color: '#d9e89d',
+              fontSize: 12.5, fontWeight: 800, fontFamily: "'Plus Jakarta Sans', sans-serif",
+            }}>Lưu</button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* ── Load menu ── */}
+    {showLoadMenu && (
+      <div style={{
+        position: 'fixed', bottom: `calc(100vh - ${loadMenuPos.top}px)`, left: loadMenuPos.left, zIndex: 10000,
+        minWidth: 320, maxWidth: 420, maxHeight: 400,
+        background: 'rgba(18,26,14,0.98)',
+        border: '1px solid rgba(255,255,255,0.12)',
+        borderRadius: 14, overflow: 'hidden',
+        boxShadow: '0 -8px 32px rgba(4,10,2,0.7)',
+        fontFamily: "'Plus Jakarta Sans', sans-serif",
+      }}>
+        <div style={{
+          padding: '10px 14px 8px',
+          borderBottom: '1px solid rgba(255,255,255,0.08)',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        }}>
+          <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(217,232,157,0.6)' }}>
+            Flow đã lưu
+          </div>
+          <button onClick={() => setShowLoadMenu(false)} style={{
+            background: 'none', border: 'none', cursor: 'pointer',
+            color: 'rgba(255,255,255,0.35)', fontSize: 16, lineHeight: 1, padding: '0 2px',
+          }}>×</button>
+        </div>
+        <div style={{ overflowY: 'auto', maxHeight: 340 }}>
+          {savedFlows.length === 0 ? (
+            <div style={{ padding: '20px 14px', textAlign: 'center', fontSize: 12.5, color: 'rgba(255,255,255,0.3)' }}>
+              Chưa có flow nào được lưu
+            </div>
+          ) : savedFlows.map(flow => (
+            <div key={flow.name} style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              padding: '9px 14px',
+              borderBottom: '1px solid rgba(255,255,255,0.05)',
+              transition: 'background 120ms',
+            }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+            >
+              <div style={{ flex: 1, minWidth: 0, cursor: 'pointer' }} onClick={() => handleLoad(flow)}>
+                <div style={{ fontSize: 12.5, fontWeight: 700, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {flow.name}
+                </div>
+                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {flow.nodes.length} nodes · {new Date(flow.savedAt).toLocaleString('vi-VN')}
+                </div>
+              </div>
+              <button
+                onClick={() => { handleLoad(flow); }}
+                style={{
+                  padding: '4px 10px', borderRadius: 7, border: 'none', cursor: 'pointer',
+                  background: 'rgba(170,203,79,0.15)', color: '#aacb4f',
+                  fontSize: 11, fontWeight: 700, flexShrink: 0,
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                }}
+              >Tải</button>
+              <button
+                onClick={() => handleDeleteSaved(flow.name)}
+                title="Xóa flow này"
+                style={{
+                  padding: '4px 8px', borderRadius: 7, border: 'none', cursor: 'pointer',
+                  background: 'rgba(217,90,60,0.12)', color: '#d98a6a',
+                  fontSize: 11, fontWeight: 700, flexShrink: 0,
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                }}
+              >✕</button>
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
     </div>/* end backdrop */
   );
 }
