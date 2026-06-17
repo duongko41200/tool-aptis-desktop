@@ -315,6 +315,17 @@ export default function WelcomePage() {
 
   const toggle = (k: Exclude<PanelKey, null>) => setPanel(p => (p === k ? null : k));
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setPanel(p => p === 'search' ? null : 'search');
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   const railButtons = [
     { ic: 'search', title: 'Tìm kiếm', onClick: () => toggle('search'), key: 'search' as const },
     { ic: 'checkCircle', title: 'Đã hoàn thành', onClick: () => navigate('/dashboard') },

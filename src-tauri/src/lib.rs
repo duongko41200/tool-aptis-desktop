@@ -128,7 +128,7 @@ pub fn run() {
             .decorations(false)
             .skip_taskbar(true)
             .visible(false)
-            .inner_size(380.0, 440.0)
+            .inner_size(380.0, 600.0)
             .resizable(false)
             .transparent(true)
             .build()?;
