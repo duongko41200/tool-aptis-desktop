@@ -1,7 +1,14 @@
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
+import { useQuery } from '@tanstack/react-query';
 import TopBar from '../components/layout/TopBar';
 import Icon from '../components/common/Icon';
+import { useNotesForDeck } from '../hooks/useAnki';
+import { getWritingSubmissions, getStudyActivity } from '../services/tauriCommands';
+import { setMusicEnabled, setMusicVolume } from '../store/pomodoroSlice';
+import type { RootState } from '../store';
+import ActivityHeatmap from '../components/dashboard/ActivityHeatmap';
 
 function Ring({ value = 68, size = 92, label, sub }: { value?: number; size?: number; label?: string | number; sub?: string }) {
   const r = (size - 12) / 2;
@@ -64,31 +71,108 @@ function ModeCard({ ic, tag, title, desc, meta, path, delay }: {
 }
 
 function Player() {
-  const [playing, setPlaying] = useState(true);
+  const dispatch = useDispatch();
+  const playing = useSelector((state: RootState) => state.pomodoro.musicEnabled);
+  const volume = useSelector((state: RootState) => state.pomodoro.musicVolume);
+
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(1);
+
+  useEffect(() => {
+    const audio = document.getElementById('global-bg-audio') as HTMLAudioElement;
+    if (!audio) return;
+
+    const updateTime = () => {
+      setCurrentTime(audio.currentTime);
+      setDuration(audio.duration || 1);
+    };
+
+    audio.addEventListener('timeupdate', updateTime);
+    updateTime();
+
+    return () => audio.removeEventListener('timeupdate', updateTime);
+  }, []);
+
+  const formatTime = (sec: number) => {
+    if (isNaN(sec) || !isFinite(sec)) return '0:00';
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  };
+
+  const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+
   return (
     <div className="darkglass" style={{ borderRadius: 'var(--r-lg)', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 14 }}>
-      <button onClick={() => setPlaying(p => !p)}
+      <button onClick={() => dispatch(setMusicEnabled(!playing))}
         style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--accent)', color: 'var(--accent-ink)', display: 'grid', placeItems: 'center', boxShadow: 'var(--sh-glow)', border: 'none', cursor: 'pointer' }}>
         <Icon name={playing ? 'pause' : 'play'} size={20} fill={!playing} />
       </button>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13.5, fontWeight: 700, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Rainy Café — lofi beats</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
-          <span style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.6)', fontFamily: 'var(--font-mono)' }}>1:24</span>
+          <span style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.6)', fontFamily: 'var(--font-mono)' }}>{formatTime(currentTime)}</span>
           <div className="bar" style={{ flex: 1, background: 'rgba(255,255,255,0.18)' }}>
-            <i style={{ width: '38%', background: 'var(--accent)' }} />
+            <i style={{ width: `${progress}%`, background: 'var(--accent)' }} />
           </div>
-          <span style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.6)', fontFamily: 'var(--font-mono)' }}>3:40</span>
+          <span style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.6)', fontFamily: 'var(--font-mono)' }}>{formatTime(duration)}</span>
         </div>
       </div>
-      <button className="iconbtn" style={{ width: 38, height: 38 }}><Icon name="skip" size={16} fill /></button>
-      <button className="iconbtn" style={{ width: 38, height: 38 }}><Icon name="volume" size={17} /></button>
+      <button className="iconbtn" style={{ width: 38, height: 38 }} onClick={() => {
+        const audio = document.getElementById('global-bg-audio') as HTMLAudioElement;
+        if (audio) audio.currentTime = 0;
+      }}>
+        <Icon name="skip" size={16} fill />
+      </button>
+      <button className="iconbtn" style={{ width: 38, height: 38 }} onClick={() => dispatch(setMusicVolume(volume > 0 ? 0 : 50))}>
+        <Icon name="volume" size={17} style={{ opacity: volume === 0 ? 0.3 : 1 }} />
+      </button>
     </div>
   );
 }
 
 export default function DashboardPage() {
   const navigate = useNavigate();
+
+  // Dynamic Date & Time
+  const { dateStr, greeting } = useMemo(() => {
+    const now = new Date();
+    const h = now.getHours();
+    const days = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
+    const session = h < 12 ? 'sáng' : h < 18 ? 'chiều' : 'tối';
+    return {
+      dateStr: `${days[now.getDay()]} · Buổi ${session}`,
+      greeting: `Chào buổi ${session}, Bạn 🌿`
+    };
+  }, []);
+
+  // Fetch real data
+  const { data: allNotes } = useNotesForDeck(null, {});
+  const { data: writings } = useQuery({ queryKey: ['writings'], queryFn: getWritingSubmissions });
+  const { data: activity } = useQuery({ queryKey: ['study-activity'], queryFn: () => getStudyActivity(182) });
+
+  const notesCount = allNotes?.length || 0;
+  const wordOfDay = useMemo(() => {
+    if (!allNotes || allNotes.length === 0) return null;
+    const todayStr = new Date().toISOString().slice(0, 10);
+    // Simple hash to pick a consistent word for today
+    const hash = todayStr.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    return allNotes[hash % allNotes.length];
+  }, [allNotes]);
+
+  // Build dynamic recent activities
+  const recentActs = useMemo(() => {
+    const list = [];
+    if (writings && writings.length > 0) {
+      const preview = writings[0].content.length > 20 ? writings[0].content.substring(0, 20) + '...' : writings[0].content;
+      list.push({ ic: 'pencil', ti: `Bài viết: ${preview}`, sub: `Điểm ${writings[0].overall_score || '?'} · gần đây`, path: '/writing/feedback' });
+    }
+    if (allNotes && allNotes.length > 0) {
+      list.push({ ic: 'cards', ti: `Đã thêm: ${allNotes[0].front}`, sub: 'Hoàn thành · gần đây', path: '/vocab' });
+    }
+    list.push({ ic: 'chat', ti: 'Nói: Talking about hobbies', sub: '12 phút · hôm qua', path: '/speaking' });
+    return list.slice(0, 3);
+  }, [writings, allNotes]);
 
   return (
     <div className="screen scroll" style={{ overflowY: 'auto' }}>
@@ -98,14 +182,14 @@ export default function DashboardPage() {
         {/* Header card */}
         <div className="glass rise" style={{ padding: 26, display: 'flex', alignItems: 'center', gap: 24, marginBottom: 20, flexWrap: 'wrap' }}>
           <div style={{ flex: 1, minWidth: 240 }}>
-            <div className="label-cap" style={{ color: 'var(--accent-deep)' }}>Thứ Hai · Buổi sáng</div>
-            <h1 style={{ fontSize: 30, fontWeight: 800, letterSpacing: '-0.025em', color: 'var(--ink)', margin: '6px 0 6px' }}>Chào buổi sáng, Minh 🌿</h1>
+            <div className="label-cap" style={{ color: 'var(--accent-deep)' }}>{dateStr}</div>
+            <h1 style={{ fontSize: 30, fontWeight: 800, letterSpacing: '-0.025em', color: 'var(--ink)', margin: '6px 0 6px' }}>{greeting}</h1>
             <p style={{ fontSize: 14.5, color: 'var(--ink-2)', margin: 0 }}>
               Bạn đã học <b style={{ color: 'var(--ink)' }}>20 / 30 phút</b> hôm nay. Cố thêm chút nữa nhé!
             </p>
             <div style={{ display: 'flex', gap: 10, marginTop: 16, flexWrap: 'wrap' }}>
               <span className="chip"><Icon name="flame" size={15} fill style={{ color: '#e08a3b' }} /> Streak 9 ngày</span>
-              <span className="chip"><Icon name="cards" size={15} /> 142 từ đã thuộc</span>
+              <span className="chip"><Icon name="cards" size={15} /> {notesCount} từ đã thuộc</span>
               <span className="chip"><Icon name="trophy" size={15} /> Hạng Bạc</span>
             </div>
           </div>
@@ -120,9 +204,9 @@ export default function DashboardPage() {
         {/* Mode grid */}
         <div className="label-cap" style={{ color: 'var(--on-dark-2)', margin: '4px 2px 12px' }}>Luyện tập hôm nay</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16, marginBottom: 20 }}>
-          <ModeCard ic="chat"       tag="AI · Nói"   title="Luyện nói với AI"     desc="Hội thoại tự nhiên, nhận sửa lỗi phát âm & ngữ pháp ngay lập tức." meta="~10 phút · 3 chủ đề mới"  path="/speaking"          delay="60ms" />
-          <ModeCard ic="pencil"     tag="AI · Viết"  title="Phòng viết"           desc="Viết theo đề mỗi ngày, AI chấm chi tiết Grammar · Vocab · Structure." meta="~15 phút · đề hôm nay" path="/writing"            delay="120ms" />
-          <ModeCard ic="headphones" tag="Shadowing"  title="Luyện nghe & nhại"    desc="Nghe đoạn hội thoại lofi, nhại theo từng câu để cải thiện ngữ điệu." meta="~8 phút · video mới"    path="/listening"         delay="180ms" />
+          <ModeCard ic="chat" tag="AI · Nói" title="Luyện nói với AI" desc="Hội thoại tự nhiên, nhận sửa lỗi phát âm & ngữ pháp ngay lập tức." meta="~10 phút · 3 chủ đề mới" path="/speaking" delay="60ms" />
+          <ModeCard ic="pencil" tag="AI · Viết" title="Phòng viết" desc="Viết theo đề mỗi ngày, AI chấm chi tiết Grammar · Vocab · Structure." meta="~15 phút · đề hôm nay" path="/writing" delay="120ms" />
+          <ModeCard ic="headphones" tag="Shadowing" title="Luyện nghe & nhại" desc="Nghe đoạn hội thoại lofi, nhại theo từng câu để cải thiện ngữ điệu." meta="~8 phút · video mới" path="/listening" delay="180ms" />
         </div>
 
         {/* Bottom row: recent + player + word-of-day */}
@@ -134,17 +218,13 @@ export default function DashboardPage() {
                 Xem tất cả <Icon name="chevR" size={13} />
               </button>
             </div>
-            {([
-              ['pencil',     'Bài viết: My hometown',     'Điểm 82 · 2 giờ trước',    '/writing/feedback'],
-              ['chat',       'Nói: Talking about hobbies', '12 phút · hôm qua',        '/speaking'],
-              ['cards',      'Ôn 24 thẻ từ vựng',         'Hoàn thành · hôm qua',     '/vocab'],
-            ] as const).map(([ic, ti, sub, path], i) => (
+            {recentActs.map(({ ic, ti, sub, path }, i) => (
               <button key={i} onClick={() => navigate(path)}
-                style={{ width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 13, padding: '11px 8px', borderRadius: 'var(--r-sm)', transition: 'background 140ms', background: 'transparent' }}
+                style={{ width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 13, padding: '11px 8px', borderRadius: 'var(--r-sm)', transition: 'background 140ms', background: 'transparent', border: 'none', cursor: 'pointer' }}
                 onMouseEnter={e => { e.currentTarget.style.background = 'rgba(40,55,30,0.05)'; }}
                 onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}>
                 <span style={{ width: 38, height: 38, borderRadius: 'var(--r-sm)', background: 'rgba(217,232,157,0.5)', color: 'var(--accent-ink)', display: 'grid', placeItems: 'center' }}>
-                  <Icon name={ic} size={18} />
+                  <Icon name={ic as any} size={18} />
                 </span>
                 <span style={{ flex: 1 }}>
                   <span style={{ display: 'block', fontSize: 14, fontWeight: 700, color: 'var(--ink)' }}>{ti}</span>
@@ -159,36 +239,33 @@ export default function DashboardPage() {
             <Player />
             <div className="glass" style={{ padding: 20, flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
               <div className="label-cap" style={{ color: 'var(--accent-deep)', marginBottom: 8 }}>Từ của ngày</div>
-              <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--ink)', letterSpacing: '-0.02em' }}>
-                serene{' '}
-                <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink-3)', fontFamily: 'var(--font-mono)' }}>/səˈriːn/</span>
-              </div>
-              <div style={{ fontSize: 13.5, color: 'var(--ink-2)', marginTop: 4 }}>(tính từ) thanh bình, yên ả</div>
+              {wordOfDay ? (
+                <>
+                  <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--ink)', letterSpacing: '-0.02em', wordBreak: 'break-word' }}>
+                    {wordOfDay.front}
+                  </div>
+                  <div style={{ fontSize: 13.5, color: 'var(--ink-2)', marginTop: 4 }}>{wordOfDay.back || 'Thẻ bài chưa có mặt sau'}</div>
+                </>
+              ) : (
+                <>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--ink)', letterSpacing: '-0.02em', padding: '16px 0' }}>
+                    Chưa có từ vựng nào.
+                  </div>
+                  <div style={{ fontSize: 13.5, color: 'var(--ink-2)' }}>Hãy thêm từ vựng mới để bắt đầu học nhé!</div>
+                </>
+              )}
               <button onClick={() => navigate('/vocab')} className="btn btn-soft btn-sm" style={{ marginTop: 14, alignSelf: 'flex-start' }}>
-                <Icon name="plus" size={15} /> Lưu vào kho từ
+                <Icon name="plus" size={15} /> Thêm từ mới
               </button>
             </div>
           </div>
         </div>
 
-        {/* Quick access to tools */}
+        {/* Activity Heatmap */}
         <div style={{ marginTop: 20 }}>
-          <div className="label-cap" style={{ color: 'var(--on-dark-2)', margin: '4px 2px 12px' }}>Công cụ học tập</div>
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-            {([
-              ['sparkle',    'RAG Chat AI',     '/rag-chat'],
-              ['headphones', 'Shadowing Video', '/tools/shadowing'],
-              ['mic',        'Teleprompter',    '/tools/teleprompter'],
-              ['clipboard',  'Clipboard',       '/tools/clipboard'],
-              ['cards',      'Flashcards Anki', '/vocab'],
-              ['settings',   'Cài đặt',         '/tools/settings'],
-            ] as const).map(([ic, label, path]) => (
-              <button key={label} onClick={() => navigate(path)} className="btn btn-ghost btn-sm" style={{ borderRadius: 'var(--r-md)' }}>
-                <Icon name={ic} size={15} /> {label}
-              </button>
-            ))}
-          </div>
+          <ActivityHeatmap data={activity || []} days={182} />
         </div>
+
       </div>
     </div>
   );

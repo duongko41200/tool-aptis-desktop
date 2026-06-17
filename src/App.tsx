@@ -349,6 +349,7 @@ function AppShell() {
       
       {/* Background Focus Music */}
       <audio 
+        id="global-bg-audio"
         ref={audioRef} 
         src={bgMusic} 
         loop 

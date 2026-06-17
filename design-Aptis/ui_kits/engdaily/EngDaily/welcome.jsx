@@ -239,7 +239,6 @@ function SettingsPopover({ go, onClose }) {
       <div style={{ padding: 6 }}>
         <Row ic="volume" label="Âm thanh nền"><Sw on={sound} set={setSound} /></Row>
         <Row ic="bell" label="Nhắc học hằng ngày"><Sw on={notif} set={setNotif} /></Row>
-        <Row ic="globe" label="Ngôn ngữ"><span className="chip" style={{ fontSize: 12 }}>Tiếng Việt</span></Row>
         <div className="divider" style={{ margin: '4px 12px' }}></div>
         <button onClick={onClose} style={{
           width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 12, padding: '11px 12px',

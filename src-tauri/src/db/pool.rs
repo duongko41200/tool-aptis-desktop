@@ -14,5 +14,6 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
     conn.execute_batch(include_str!("../../migrations/004_writing_score_history.sql"))?;
     // 005: add cross_exam_results_json — ignore error if column already exists
     let _ = conn.execute_batch(include_str!("../../migrations/005_writing_cross_exam_results.sql"));
+    conn.execute_batch(include_str!("../../migrations/006_study_activities.sql"))?;
     Ok(())
 }

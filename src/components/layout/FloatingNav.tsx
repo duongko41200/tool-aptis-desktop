@@ -4,7 +4,6 @@ import Icon from '../common/Icon';
 
 const NAV_ITEMS = [
   { icon: 'home',       label: 'Trang chủ', path: '/' },
-  { icon: 'grid',       label: 'Học tập',   path: '/dashboard' },
   { icon: 'chat',       label: 'Nói',       path: '/speaking' },
   { icon: 'pencil',     label: 'Viết',      path: '/writing' },
   { icon: 'headphones', label: 'Nghe',      path: '/listening' },

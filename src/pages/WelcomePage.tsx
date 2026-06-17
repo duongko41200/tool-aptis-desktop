@@ -10,6 +10,9 @@ import { RootState } from '../store';
 import { setMusicEnabled, setMusicVolume } from '../store/pomodoroSlice';
 import { setDailyReminder } from '../store/appSlice';
 import { useNotesForDeck } from '../hooks/useAnki';
+import { getStudyActivity } from '../services/tauriCommands';
+import { useQuery } from '@tanstack/react-query';
+import ActivityHeatmap from '../components/dashboard/ActivityHeatmap';
 
 const LS_GEMINI_KEY = 'gemini_api_key';
 
@@ -230,7 +233,6 @@ function SettingsPopover({ onClose }: { onClose: () => void }) {
           </div>
         )}
         <Row ic="bell" label="Nhắc học hằng ngày"><Switch on={dailyReminder} set={(v) => dispatch(setDailyReminder(v))} /></Row>
-        <Row ic="globe" label="Ngôn ngữ"><span className="chip" style={{ fontSize: 12 }}>Tiếng Việt</span></Row>
         <hr className="divider" style={{ margin: '4px 12px' }} />
         <GeminiKeySection />
         <hr className="divider" style={{ margin: '4px 12px' }} />
@@ -250,11 +252,11 @@ function SettingsPopover({ onClose }: { onClose: () => void }) {
 function SearchPopover({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate();
   const [q, setQ] = useState('');
-  
+
   // Fetch notes based on query (or all notes if q is empty)
   const { data: notesData } = useNotesForDeck(null, { search: q || undefined });
   const allNotes = notesData || [];
-  
+
   // Get top 4 unique suggestions based on 'front'
   const suggestions = Array.from(new Set(allNotes.map(n => n.front))).slice(0, 4);
 
@@ -309,65 +311,130 @@ export default function WelcomePage() {
   const [mode, setMode] = useState<'study' | 'pomodoro'>('study');
   const [panel, setPanel] = useState<PanelKey>(null);
 
+  const { data: activity } = useQuery({ queryKey: ['study-activity'], queryFn: () => getStudyActivity(140) }); // 20 weeks
+
   const toggle = (k: Exclude<PanelKey, null>) => setPanel(p => (p === k ? null : k));
 
   const railButtons = [
-    { ic: 'search',      title: 'Tìm kiếm',       onClick: () => toggle('search'),  key: 'search' as const },
-    { ic: 'checkCircle', title: 'Đã hoàn thành',   onClick: () => navigate('/dashboard') },
-    { ic: 'user',        title: 'Hồ sơ của bạn',   onClick: () => toggle('profile'), key: 'profile' as const },
-    { ic: 'chat',        title: 'Trò chuyện với AI', onClick: () => navigate('/speaking') },
-    { ic: 'settings',    title: 'Cài đặt',          onClick: () => toggle('settings'), key: 'settings' as const },
+    { ic: 'search', title: 'Tìm kiếm', onClick: () => toggle('search'), key: 'search' as const },
+    { ic: 'checkCircle', title: 'Đã hoàn thành', onClick: () => navigate('/dashboard') },
+    { ic: 'user', title: 'Hồ sơ của bạn', onClick: () => toggle('profile'), key: 'profile' as const },
+    { ic: 'chat', title: 'Trò chuyện với AI', onClick: () => navigate('/speaking') },
+    { ic: 'settings', title: 'Cài đặt', onClick: () => toggle('settings'), key: 'settings' as const },
   ];
+
+  const opt = (ic: string, label: string, path: string) => (
+    <button onClick={() => navigate(path)} className="btn btn-ghost" style={{
+      borderRadius: 'var(--r-lg)', padding: '12px 20px',
+      background: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(8px)',
+      color: 'var(--on-dark)', fontSize: 14, fontWeight: 600, border: '1px solid rgba(255,255,255,0.08)'
+    }}>
+      <Icon name={ic} size={16} style={{ marginRight: 8, opacity: 0.8 }} /> {label}
+    </button>
+  );
 
   return (
     <div className="screen">
       <TopBar />
 
       {/* Hero */}
-      <main style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: 24 }}>
-        <div className="rise" style={{ maxWidth: 860 }}>
-          <div className="chip chip-dark text-shadow" style={{ margin: '0 auto 22px', fontSize: 12 }}>
-            <Icon name="sparkle" size={14} /> Học mỗi ngày · giữ chuỗi của bạn
-          </div>
-          <h1 className="text-shadow" style={{ color: 'var(--on-dark)', fontSize: 'clamp(26px,3.1vw,40px)', fontWeight: 800, lineHeight: 1.15, letterSpacing: '-0.025em', margin: '0 0 16px', whiteSpace: 'nowrap' }}>
-            Bắt đầu bài học hôm nay nhé.
-          </h1>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 30 }}>
-            <span className="chip chip-dark" style={{ fontSize: 13, fontWeight: 700 }}>
-              <Icon name="clock" size={14} /> 5 phút
-            </span>
-            <span className="text-shadow" style={{ color: 'var(--on-dark-2)', fontSize: 15 }}>
-              Dựa trên những gì bạn đã học hôm qua · Từ vựng · Đọc · Nghe
-            </span>
-          </div>
+      <main className="scroll" style={{
+        position: 'absolute', inset: 0,
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+        padding: '120px 24px 240px', // Top padding to clear TopBar, Bottom padding to clear Widgets
+        overflowY: 'auto', overflowX: 'hidden'
+      }}>
 
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18 }}>
+        {/* Unified Hero Bento Card */}
+        <div className="rise" style={{
+          margin: 'auto', // Vertically center when space permits
+          width: '100%', maxWidth: 1040,
+          display: 'flex', flexWrap: 'wrap', gap: 32, justifyContent: 'space-between',
+          background: 'linear-gradient(135deg, var(--glass-2), transparent)',
+          backdropFilter: 'blur(var(--glass-blur)) saturate(1.2)', WebkitBackdropFilter: 'blur(var(--glass-blur)) saturate(1.2)',
+          border: '1px solid var(--glass-edge)',
+          borderRadius: '34px',
+          padding: '48px 56px',
+          boxShadow: '0 32px 64px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.2)',
+          alignItems: 'center'
+        }}>
+
+          {/* Left: Copy & Action */}
+          <div style={{ flex: '1 1 400px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', textAlign: 'left' }}>
+            <div className="chip chip-dark text-shadow" style={{ marginBottom: 20, fontSize: 13, padding: '6px 14px', background: 'var(--darkglass)', border: '1px solid var(--darkglass-line)' }}>
+              <Icon name="sparkle" size={15} style={{ color: 'var(--accent)' }} />
+              <span style={{ color: 'rgba(255,255,255,0.9)' }}>Sẵn sàng cho hôm nay</span>
+            </div>
+
+            <h1 className="text-shadow" style={{
+              color: 'var(--on-dark)', fontSize: 'clamp(32px, 3.5vw, 46px)',
+              fontWeight: 800, lineHeight: 1.2, letterSpacing: '-0.02em',
+              margin: '0 0 18px', maxWidth: 480
+            }}>
+              Thời gian hoàn hảo để trau dồi tiếng Anh.
+            </h1>
+
+            <p className="text-shadow" style={{ color: 'rgba(255,255,255,0.7)', fontSize: 16, lineHeight: 1.6, margin: '0 0 36px', maxWidth: 420 }}>
+              Chỉ cần 5 phút luyện tập mỗi ngày để duy trì thói quen. Hệ thống đã chuẩn bị bài học tiếp theo cho bạn.
+            </p>
+
             <button
               onClick={() => navigate('/dashboard')}
-              className="btn btn-primary btn-lg pulse-soft"
-              style={{ padding: '22px 56px', flexDirection: 'column', gap: 4, borderRadius: 'var(--r-xl)' }}
+              className="btn btn-primary pulse-soft"
+              style={{
+                padding: '18px 42px', borderRadius: 'var(--r-xl)',
+                display: 'flex', alignItems: 'center', gap: 12,
+                fontSize: 18, fontWeight: 800,
+                boxShadow: '0 12px 32px rgba(217,232,157,0.3)',
+                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 16px 40px rgba(217,232,157,0.4)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 12px 32px rgba(217,232,157,0.3)'; }}
             >
-              <span style={{ fontSize: 22, fontWeight: 800 }}>Bắt đầu bài học</span>
-              <span style={{ fontSize: 13, fontWeight: 600, opacity: 0.7 }}>Từ vựng • Đọc • Nghe</span>
+              Bắt đầu bài học <Icon name="arrowR" size={20} />
             </button>
           </div>
 
-          <div style={{ marginTop: 56 }}>
-            <div className="label-cap text-shadow" style={{ color: 'var(--on-dark-2)', marginBottom: 14 }}>Thêm lựa chọn luyện tập</div>
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
-              {([
-                ['plus',    'Thêm từ mới',   '/vocab'],
-                ['refresh', 'Ôn từ vựng',   '/vocab'],
-                ['book',    'Luyện đọc',     '/writing'],
-                ['video',   'Xem video',     '/speaking'],
-              ] as const).map(([ic, label, path]) => (
-                <button key={label} onClick={() => navigate(path)} className="btn btn-ghost btn-sm" style={{ borderRadius: 'var(--r-md)' }}>
-                  <Icon name={ic} size={16} /> {label}
-                </button>
-              ))}
+          {/* Right: Heatmap Data */}
+          <div className="fade-in-up" style={{ flex: '1 1 340px', animationDelay: '300ms', position: 'relative' }}>
+            <div style={{ position: 'absolute', inset: -20, background: 'radial-gradient(circle, rgba(217,232,157,0.1) 0%, transparent 70%)', zIndex: 0, borderRadius: '50%' }}></div>
+
+            <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 4px' }}>
+                <span className="text-shadow" style={{ fontSize: 14.5, fontWeight: 700, color: 'rgba(255,255,255,0.9)' }}>Bản đồ nhiệt huyết</span>
+                <span className="chip" style={{ background: 'var(--darkglass)', color: 'rgba(255,255,255,0.8)', fontSize: 12, border: '1px solid var(--darkglass-line)' }}>20 tuần</span>
+              </div>
+
+              <ActivityHeatmap
+                data={activity || []}
+                days={140}
+                className="glass-2"
+                theme="dark"
+                style={{
+                  padding: '24px',
+                  borderRadius: '26px',
+                  background: 'var(--darkglass)',
+                  border: '1px solid var(--darkglass-line)',
+                  boxShadow: 'inset 0 4px 24px rgba(0,0,0,0.2)'
+                }}
+              />
             </div>
           </div>
+
         </div>
+
+        {/* Quick Actions / Practice Options */}
+        <div className="fade-in-up" style={{ marginTop: 10, animationDelay: '400ms', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <div className="label-cap text-shadow" style={{ color: 'var(--on-dark-2)', marginBottom: 18, letterSpacing: '0.05em', fontSize: '18px' }}>Lựa chọn luyện tập nhanh</div>
+          <div style={{ display: 'flex', gap: 14, justifyContent: 'center', flexWrap: 'wrap' }}>
+            {opt('headphones', 'Luyện nghe', '/listening')}
+            {opt('book', 'Luyện đọc', '/reading')}
+            {opt('mic', 'Luyện nói', '/speaking')}
+            {opt('edit-3', 'Luyện viết', '/writing')}
+            {opt('layers', 'Kho từ vựng', '/vocab')}
+          </div>
+        </div>
+
       </main>
 
       {/* Bottom-left widgets */}
@@ -434,9 +501,9 @@ export default function WelcomePage() {
         <>
           <div onClick={() => setPanel(null)} style={{ position: 'absolute', inset: 0, zIndex: 28 }} />
           <div className="glass rise" style={{ position: 'absolute', right: 80, bottom: 22, zIndex: 31, width: 312, padding: 0, borderRadius: 'var(--r-lg)', overflow: 'hidden', boxShadow: 'var(--sh-lg)' }}>
-            {panel === 'profile'  && <ProfilePopover onClose={() => setPanel(null)} />}
+            {panel === 'profile' && <ProfilePopover onClose={() => setPanel(null)} />}
             {panel === 'settings' && <SettingsPopover onClose={() => setPanel(null)} />}
-            {panel === 'search'   && <SearchPopover onClose={() => setPanel(null)} />}
+            {panel === 'search' && <SearchPopover onClose={() => setPanel(null)} />}
           </div>
         </>
       )}

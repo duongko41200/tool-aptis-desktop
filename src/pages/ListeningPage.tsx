@@ -2,6 +2,8 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import TopBar from '../components/layout/TopBar';
 import Icon from '../components/common/Icon';
 import { useListeningExams } from '../hooks/useListeningExams';
+import { saveStudyActivity } from '../services/tauriCommands';
+import { useQueryClient } from '@tanstack/react-query';
 
 const fmt = (s: number) =>
   `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -49,6 +51,7 @@ function AudioPlayer({ playing, onToggle }: { playing: boolean; onToggle: () => 
 
 export default function ListeningPage() {
   const { getExamsByPart } = useListeningExams();
+  const queryClient = useQueryClient();
   const [part, setPart] = useState<1 | 2 | 3 | 4>(1);
   const [examIndex, setExamIndex] = useState(0);
 
@@ -165,6 +168,11 @@ export default function ListeningPage() {
       ...prev,
       [dictIndex]: { score, diff: diffNodes }
     }));
+
+    // Log activity
+    saveStudyActivity('listening_dictation', score).then(() => {
+      queryClient.invalidateQueries({ queryKey: ['study-activity'] });
+    }).catch(console.error);
   };
 
   const handleAnswer = (idx: number, val: string) => {
@@ -428,7 +436,12 @@ export default function ListeningPage() {
                     <Icon name="volume" size={15} /> Nghe lại
                   </button>
                   <button
-                    onClick={() => setChecked(true)}
+                    onClick={() => {
+                      setChecked(true);
+                      saveStudyActivity(`listening_part_${part}`).then(() => {
+                        queryClient.invalidateQueries({ queryKey: ['study-activity'] });
+                      }).catch(console.error);
+                    }}
                     className="btn btn-primary btn-sm"
                     style={{ marginLeft: 'auto' }}
                     disabled={!canCheck}

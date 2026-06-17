@@ -187,3 +187,13 @@ export const saveDeckSession = (params: {
 
 export const getDeckSession = (deckId: number) =>
   invoke<DeckSession>('get_deck_session', { deckId });
+
+export interface DailyActivity {
+  date: string;
+  count: number;
+}
+
+export const getStudyActivity = (days: number) => invoke<DailyActivity[]>('get_study_activity', { days });
+export const saveStudyActivity = (activityType: string, score?: number) => invoke<number>('save_study_activity', { activityType, score });
+
+// Trigger HMR

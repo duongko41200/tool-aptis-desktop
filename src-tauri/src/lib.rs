@@ -217,6 +217,8 @@ pub fn run() {
             commands::anki::create_note_from_clipboard,
             commands::anki::save_deck_session,
             commands::anki::get_deck_session,
+            commands::anki::get_study_activity,
+            commands::anki::save_study_activity,
             commands::backend::start_rag_backend,
             commands::backend::check_backend_running,
             commands::backend::get_backend_diagnostics,

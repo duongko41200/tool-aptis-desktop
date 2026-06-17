@@ -11,7 +11,7 @@ function TopBar({ go, current }) {
       <Logo onClick={() => go('welcome')} />
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <nav className="darkglass" style={{ display: 'flex', gap: 4, padding: 6, borderRadius: 'var(--r-pill)' }}>
-          {[['home', 'Trang chủ', 'welcome'], ['grid', 'Học tập', 'dashboard'], ['chat', 'Nói', 'speaking'], ['pencil', 'Viết', 'writing']].map(([ic, label, key]) => (
+          {[['home', 'Trang chủ', 'welcome'], ['chat', 'Nói', 'speaking'], ['pencil', 'Viết', 'writing']].map(([ic, label, key]) => (
             <button key={key} onClick={() => go(key)}
               style={{
                 display: 'flex', alignItems: 'center', gap: 7, padding: '9px 15px',
@@ -239,7 +239,6 @@ function SettingsPopover({ go, onClose }) {
       <div style={{ padding: 6 }}>
         <Row ic="volume" label="Âm thanh nền"><Sw on={sound} set={setSound} /></Row>
         <Row ic="bell" label="Nhắc học hằng ngày"><Sw on={notif} set={setNotif} /></Row>
-        <Row ic="globe" label="Ngôn ngữ"><span className="chip" style={{ fontSize: 12 }}>Tiếng Việt</span></Row>
         <div className="divider" style={{ margin: '4px 12px' }}></div>
         <button onClick={onClose} style={{
           width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 12, padding: '11px 12px',

@@ -550,3 +550,62 @@ pub async fn create_note_from_clipboard(
     let cards = generate_cards(&db, &note)?;
     Ok(CreateNoteResult { note, cards })
 }
+
+#[derive(Debug, Serialize)]
+pub struct DailyActivity {
+    pub date: String,
+    pub count: i64,
+}
+
+#[tauri::command]
+pub async fn get_study_activity(days: i64, state: State<'_, AppState>) -> Result<Vec<DailyActivity>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    let query = format!(
+        "SELECT date(activity_date, 'localtime') as day, SUM(count) as total_count FROM (
+            SELECT reviewed_at as activity_date, 1 as count FROM review_logs WHERE date(reviewed_at, 'localtime') >= date('now', 'localtime', '-{} days')
+            UNION ALL
+            SELECT created_at as activity_date, 1 as count FROM notes WHERE date(created_at, 'localtime') >= date('now', 'localtime', '-{} days')
+            UNION ALL
+            SELECT created_at as activity_date, 1 as count FROM writing_submissions WHERE date(created_at, 'localtime') >= date('now', 'localtime', '-{} days')
+            UNION ALL
+            SELECT created_at as activity_date, 1 as count FROM recordings WHERE date(created_at, 'localtime') >= date('now', 'localtime', '-{} days')
+            UNION ALL
+            SELECT created_at as activity_date, 1 as count FROM video_sessions WHERE date(created_at, 'localtime') >= date('now', 'localtime', '-{} days')
+            UNION ALL
+            SELECT created_at as activity_date, 1 as count FROM study_activities WHERE date(created_at, 'localtime') >= date('now', 'localtime', '-{} days')
+        ) GROUP BY day ORDER BY day ASC",
+        days, days, days, days, days, days
+    );
+
+    let mut stmt = db.prepare(&query).map_err(|e| e.to_string())?;
+    
+    let rows = stmt.query_map([], |row| {
+        Ok(DailyActivity {
+            date: row.get(0)?,
+            count: row.get(1)?,
+        })
+    }).map_err(|e| e.to_string())?;
+
+    let mut activities = Vec::new();
+    for row in rows {
+        activities.push(row.map_err(|e| e.to_string())?);
+    }
+
+    Ok(activities)
+}
+
+#[tauri::command]
+pub async fn save_study_activity(activity_type: String, score: Option<i32>, state: State<'_, AppState>) -> Result<i64, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    
+    // Convert to localtime so that 'created_at' represents the user's local timezone.
+    let created_at = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+
+    db.execute(
+        "INSERT INTO study_activities (activity_type, score, created_at) VALUES (?1, ?2, ?3)",
+        rusqlite::params![activity_type, score, created_at],
+    ).map_err(|e| e.to_string())?;
+
+    Ok(db.last_insert_rowid())
+}
