@@ -3,6 +3,7 @@ import appReducer from './appSlice';
 import clipboardReducer from './clipboardSlice';
 import recordingReducer from './recordingSlice';
 import writingHistoryReducer from './writingHistorySlice';
+import pomodoroReducer from './pomodoroSlice';
 
 export const store = configureStore({
   reducer: {
@@ -10,6 +11,7 @@ export const store = configureStore({
     clipboard: clipboardReducer,
     recording: recordingReducer,
     writingHistory: writingHistoryReducer,
+    pomodoro: pomodoroReducer,
   },
 });
 

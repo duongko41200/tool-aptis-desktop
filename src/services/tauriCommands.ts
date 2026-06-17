@@ -140,7 +140,7 @@ export const updateNote = (params: {
 export const deleteNote = (id: number) => invoke<void>('delete_note', { id });
 
 export const getNotesForDeck = (params: {
-  deckId: number; includeSubdecks: boolean; tagFilter?: string; search?: string;
+  deckId: number | null; includeSubdecks: boolean; tagFilter?: string; search?: string;
 }) => invoke<Note[]>('get_notes_for_deck', params);
 
 export const getDueCardsForDeck = (params: {

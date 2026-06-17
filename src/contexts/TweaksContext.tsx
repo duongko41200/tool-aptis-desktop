@@ -1,13 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-
-export interface TweakValues {
-  accent:     string;
-  overlay:    number;
-  glassAlpha: number;
-  glassBlur:  number;
-  rain:       boolean;
-  font:       string;
-}
+import { useDispatch, useSelector } from 'react-redux';
+import { RootState } from '../store';
+import { setTweak as setReduxTweak, resetTweaks as resetReduxTweaks, TweakValues, DEFAULT_TWEAKS as DEFAULTS } from '../store/appSlice';
 
 interface TweaksContextType {
   tweaks:      TweakValues;
@@ -17,15 +11,6 @@ interface TweaksContextType {
   openTweaks:  () => void;
   closeTweaks: () => void;
 }
-
-const DEFAULTS: TweakValues = {
-  accent:     '#d9e89d',
-  overlay:    0.34,
-  glassAlpha: 0.74,
-  glassBlur:  18,
-  rain:       true,
-  font:       'Plus Jakarta Sans',
-};
 
 const ACCENTS = ['#d9e89d', '#bef264', '#a7e8c4', '#f6c177', '#c7b8f0'];
 
@@ -41,14 +26,17 @@ function shade(hex: string, pct: number): string {
 const TweaksContext = createContext<TweaksContextType | null>(null);
 
 export function TweaksProvider({ children }: { children: React.ReactNode }) {
-  const [tweaks, setTweaks] = useState<TweakValues>(DEFAULTS);
+  const tweaks = useSelector((state: RootState) => state.app.tweaks);
+  const dispatch = useDispatch();
   const [isOpen, setIsOpen] = useState(false);
 
   const setTweak = useCallback(<K extends keyof TweakValues>(k: K, v: TweakValues[K]) => {
-    setTweaks((prev) => ({ ...prev, [k]: v }));
-  }, []);
+    dispatch(setReduxTweak({ key: k, value: v }));
+  }, [dispatch]);
 
-  const resetTweaks = useCallback(() => setTweaks(DEFAULTS), []);
+  const resetTweaks = useCallback(() => {
+    dispatch(resetReduxTweaks());
+  }, [dispatch]);
 
   // Apply CSS variables whenever tweaks change
   useEffect(() => {

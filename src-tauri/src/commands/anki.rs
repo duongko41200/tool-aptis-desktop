@@ -262,34 +262,51 @@ pub async fn delete_note(id: i64, state: State<'_, AppState>) -> Result<(), Stri
 
 #[tauri::command]
 pub async fn get_notes_for_deck(
-    deck_id: i64,
+    deck_id: Option<i64>,
     include_subdecks: bool,
     tag_filter: Option<String>,
     search: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<Vec<Note>, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
-    let sql = if include_subdecks {
-        "WITH RECURSIVE dt AS (SELECT id FROM decks WHERE id=?1 UNION ALL SELECT d.id FROM decks d JOIN dt ON d.parent_deck_id=dt.id)
-         SELECT id, deck_id, template_type, front, back, example, personal_notes, tags, created_at, updated_at
-         FROM notes WHERE deck_id IN (SELECT id FROM dt) ORDER BY created_at DESC"
+    
+    let mut notes: Vec<Note> = Vec::new();
+    
+    if let Some(id) = deck_id {
+        let sql = if include_subdecks {
+            "WITH RECURSIVE dt AS (SELECT id FROM decks WHERE id=?1 UNION ALL SELECT d.id FROM decks d JOIN dt ON d.parent_deck_id=dt.id)
+             SELECT id, deck_id, template_type, front, back, example, personal_notes, tags, created_at, updated_at
+             FROM notes WHERE deck_id IN (SELECT id FROM dt) ORDER BY created_at DESC"
+        } else {
+            "SELECT id, deck_id, template_type, front, back, example, personal_notes, tags, created_at, updated_at
+             FROM notes WHERE deck_id=?1 ORDER BY created_at DESC"
+        };
+        let mut stmt = db.prepare(sql).map_err(|e| e.to_string())?;
+        notes = stmt.query_map(params![id], |row| Ok(Note {
+            id: row.get(0)?, deck_id: row.get(1)?, template_type: row.get(2)?,
+            front: row.get(3)?, back: row.get(4)?, example: row.get(5)?,
+            personal_notes: row.get(6)?, tags: row.get(7)?,
+            created_at: row.get(8)?, updated_at: row.get(9)?,
+        })).map_err(|e| e.to_string())?.filter_map(|r| r.ok()).collect();
     } else {
-        "SELECT id, deck_id, template_type, front, back, example, personal_notes, tags, created_at, updated_at
-         FROM notes WHERE deck_id=?1 ORDER BY created_at DESC"
-    };
-    let mut stmt = db.prepare(sql).map_err(|e| e.to_string())?;
-    let notes: Vec<Note> = stmt.query_map(params![deck_id], |row| Ok(Note {
-        id: row.get(0)?, deck_id: row.get(1)?, template_type: row.get(2)?,
-        front: row.get(3)?, back: row.get(4)?, example: row.get(5)?,
-        personal_notes: row.get(6)?, tags: row.get(7)?,
-        created_at: row.get(8)?, updated_at: row.get(9)?,
-    })).map_err(|e| e.to_string())?.filter_map(|r| r.ok())
-    .filter(|n| {
+        let sql = "SELECT id, deck_id, template_type, front, back, example, personal_notes, tags, created_at, updated_at
+             FROM notes ORDER BY created_at DESC";
+        let mut stmt = db.prepare(sql).map_err(|e| e.to_string())?;
+        notes = stmt.query_map([], |row| Ok(Note {
+            id: row.get(0)?, deck_id: row.get(1)?, template_type: row.get(2)?,
+            front: row.get(3)?, back: row.get(4)?, example: row.get(5)?,
+            personal_notes: row.get(6)?, tags: row.get(7)?,
+            created_at: row.get(8)?, updated_at: row.get(9)?,
+        })).map_err(|e| e.to_string())?.filter_map(|r| r.ok()).collect();
+    }
+
+    let filtered = notes.into_iter().filter(|n| {
         let tag_ok = tag_filter.as_ref().map_or(true, |t| n.tags.as_deref().unwrap_or("").contains(t.as_str()));
         let search_ok = search.as_ref().map_or(true, |s| n.front.to_lowercase().contains(&s.to_lowercase()) || n.back.as_deref().unwrap_or("").to_lowercase().contains(&s.to_lowercase()));
         tag_ok && search_ok
     }).collect();
-    Ok(notes)
+    
+    Ok(filtered)
 }
 
 // ── Card / Review Commands ────────────────────────────────────────────────────

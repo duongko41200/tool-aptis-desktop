@@ -1,5 +1,6 @@
 import { isPermissionGranted, requestPermission, sendNotification, onAction } from '@tauri-apps/plugin-notification';
 import { CalendarStore } from './calendar-store';
+import { store } from '../store';
 
 const CHECK_INTERVAL_MS = 10000; // 10 seconds
 
@@ -47,6 +48,9 @@ export function initNotificationWatcher() {
 }
 
 function checkReminders() {
+  const { dailyReminder } = store.getState().app;
+  if (!dailyReminder) return; // Skip if user disabled global reminders
+
   const events = CalendarStore.getEvents();
   const now = new Date();
   let updated = false;

@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import { RootState } from '../../store';
+import { setMode, setRunning, resetTimer, setMins, setVolume, PomodoroMode } from '../../store/pomodoroSlice';
 import Icon from '../common/Icon';
-
-type PomodoroMode = 'focus' | 'short' | 'long';
 
 const MODES: Array<{ k: PomodoroMode; label: string; color: string }> = [
   { k: 'focus', label: 'Tập trung',  color: 'var(--accent-deep)' },
@@ -21,7 +22,7 @@ function DurationStepper({
 }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px 0' }}>
-      <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-2)', flex: 1 }}>{label}</span>
+      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)', flex: 1 }}>{label}</span>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <button
           onClick={() => onChange(Math.max(min, value - 1))}
@@ -34,10 +35,10 @@ function DurationStepper({
             transition: 'all 120ms',
           }}>−</button>
         <span style={{
-          fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700,
+          fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 800,
           color: 'var(--ink)', minWidth: 30, textAlign: 'center',
         }}>
-          {value}<span style={{ fontSize: 10, fontWeight: 500, color: 'var(--ink-3)', marginLeft: 2 }}>ph</span>
+          {value}<span style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink-2)', marginLeft: 2 }}>ph</span>
         </span>
         <button
           onClick={() => onChange(Math.min(max, value + 1))}
@@ -59,48 +60,18 @@ interface PomodoroWidgetProps {
 }
 
 export default function PomodoroWidget({ compact = false }: PomodoroWidgetProps) {
-  const [mode, setMode] = useState<PomodoroMode>('focus');
-  const [running, setRunning] = useState(false);
-  const [sessions, setSessions] = useState(0);
+  const dispatch = useDispatch();
+  const { mode, running, sessions, mins, volume, left, isRinging } = useSelector((state: RootState) => state.pomodoro);
+
   const [showSettings, setShowSettings] = useState(false);
 
-  // User-configurable durations (minutes)
-  const [mins, setMins] = useState<Durations>({ focus: 25, short: 5, long: 15 });
-
   const totalSecs = (m: PomodoroMode) => mins[m] * 60;
-  const [left, setLeft] = useState(() => totalSecs('focus'));
-  const modeRef = useRef(mode);
-  modeRef.current = mode;
 
-  // Reset timer when mode changes
-  useEffect(() => {
-    setLeft(totalSecs(mode));
-    setRunning(false);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode]);
-
-  // When duration setting changes for current mode while paused, reset the timer
-  useEffect(() => {
-    if (!running) setLeft(totalSecs(mode));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mins.focus, mins.short, mins.long]);
-
-  // Countdown tick
-  useEffect(() => {
-    if (!running) return;
-    const id = setInterval(() => {
-      setLeft((v) => {
-        if (v <= 1) {
-          clearInterval(id);
-          setRunning(false);
-          if (modeRef.current === 'focus') setSessions((s) => Math.min(s + 1, 4));
-          return 0;
-        }
-        return v - 1;
-      });
-    }, 1000);
-    return () => clearInterval(id);
-  }, [running]);
+  const handleReset = () => { dispatch(resetTimer()); };
+  const handleToggleRunning = () => { dispatch(setRunning(!running)); setShowSettings(false); };
+  const handleSetMode = (m: PomodoroMode) => { if (!running) dispatch(setMode(m)); };
+  const handleSetMins = (k: PomodoroMode, v: number) => { dispatch(setMins({ mode: k, val: v })); };
+  const handleSetVolume = (v: number) => { dispatch(setVolume(v)); };
 
   const total = totalSecs(mode);
   const progress = 1 - left / total;
@@ -112,11 +83,6 @@ export default function PomodoroWidget({ compact = false }: PomodoroWidgetProps)
   const ss = String(left % 60).padStart(2, '0');
   const mc = MODES.find((m) => m.k === mode)!;
 
-  const reset = () => { setRunning(false); setLeft(totalSecs(mode)); };
-
-  const setModeMins = (k: PomodoroMode, v: number) =>
-    setMins((prev) => ({ ...prev, [k]: v }));
-
   return (
     <div className="glass-2 rise" style={{ padding: compact ? '13px 13px' : '17px 16px', borderRadius: 'var(--r-lg)', animationDelay: '60ms' }}>
       <style>{`
@@ -124,11 +90,16 @@ export default function PomodoroWidget({ compact = false }: PomodoroWidgetProps)
           0%, 100% { transform: scale(1); }
           50%       { transform: scale(1.025); }
         }
+        @keyframes pomo-shake {
+          0%, 100% { transform: translateX(0) scale(1.05); }
+          10%, 30%, 50%, 70%, 90% { transform: translateX(-4px) scale(1.05); }
+          20%, 40%, 60%, 80% { transform: translateX(4px) scale(1.05); }
+        }
       `}</style>
 
       {/* header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: compact ? 9 : 11 }}>
-        <div className="label-cap" style={{ color: 'var(--accent-deep)' }}>Pomodoro</div>
+        <div className="label-cap" style={{ color: 'var(--ink)', fontWeight: 800, fontSize: 13, letterSpacing: '0.02em' }}>Pomodoro</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           {sessions > 0 && (
             <span className="chip chip-accent" style={{ fontSize: 11, padding: '4px 9px' }}>
@@ -158,19 +129,24 @@ export default function PomodoroWidget({ compact = false }: PomodoroWidgetProps)
       {showSettings && !running && (
         <div style={{
           marginBottom: 12, padding: '10px 12px', borderRadius: 'var(--r-sm)',
-          background: 'rgba(255,255,255,.55)', border: '1px solid var(--glass-edge)',
+          background: 'rgba(255,255,255,.75)', border: '1px solid var(--glass-edge)',
         }}>
-          <div className="label-cap" style={{ color: 'var(--ink-3)', marginBottom: 8 }}>Thời gian (phút)</div>
-          <DurationStepper label="Tập trung"  value={mins.focus} min={5}  max={60} onChange={(v) => setModeMins('focus', v)} disabled={running} />
-          <DurationStepper label="Nghỉ ngắn"  value={mins.short} min={1}  max={15} onChange={(v) => setModeMins('short', v)} disabled={running} />
-          <DurationStepper label="Nghỉ dài"   value={mins.long}  min={10} max={30} onChange={(v) => setModeMins('long', v)}  disabled={running} />
+          <div className="label-cap" style={{ color: 'var(--ink-2)', fontWeight: 700, marginBottom: 8 }}>Thời gian (phút)</div>
+          <DurationStepper label="Tập trung"  value={mins.focus} min={5}  max={60} onChange={(v) => handleSetMins('focus', v)} disabled={running} />
+          <DurationStepper label="Nghỉ ngắn"  value={mins.short} min={1}  max={15} onChange={(v) => handleSetMins('short', v)} disabled={running} />
+          <DurationStepper label="Nghỉ dài"   value={mins.long}  min={10} max={30} onChange={(v) => handleSetMins('long', v)}  disabled={running} />
+          <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)' }}>Âm lượng chuông</span>
+            <input type="range" min="0" max="100" value={volume} onChange={e => handleSetVolume(Number(e.target.value))} style={{ flex: 1, accentColor: 'var(--accent-deep)' }} />
+            <span style={{ fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-mono)', minWidth: 35, textAlign: 'right', color: 'var(--ink)' }}>{volume}%</span>
+          </div>
         </div>
       )}
 
       {/* mode tabs */}
       <div style={{ display: 'flex', gap: 4, marginBottom: compact ? 11 : 14 }}>
         {MODES.map((m) => (
-          <button key={m.k} onClick={() => !running && setMode(m.k)}
+          <button key={m.k} onClick={() => handleSetMode(m.k)}
             style={{
               flex: 1,
               padding: compact ? '4px 2px' : '5px 3px',
@@ -181,8 +157,8 @@ export default function PomodoroWidget({ compact = false }: PomodoroWidgetProps)
               cursor: running && mode !== m.k ? 'default' : 'pointer',
               transition: 'all 140ms var(--ease)',
               background: mode === m.k ? 'var(--accent)' : 'rgba(40,55,30,.07)',
-              color: mode === m.k ? 'var(--accent-ink)' : 'var(--ink-3)',
-              opacity: running && mode !== m.k ? 0.4 : 1,
+              color: mode === m.k ? 'var(--accent-ink)' : 'var(--ink-2)',
+              opacity: running && mode !== m.k ? 0.75 : 1,
             }}>
             {m.label}
           </button>
@@ -194,7 +170,7 @@ export default function PomodoroWidget({ compact = false }: PomodoroWidgetProps)
         <div style={{
           position: 'relative', width: size, height: size,
           display: 'grid', placeItems: 'center',
-          animation: running ? 'pomo-beat 2.4s ease-in-out infinite' : 'none',
+          animation: isRinging ? 'pomo-shake 0.4s ease-in-out infinite' : (running ? 'pomo-beat 2.4s ease-in-out infinite' : 'none'),
         }}>
           <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
             <circle cx={size / 2} cy={size / 2} r={R}
@@ -213,7 +189,7 @@ export default function PomodoroWidget({ compact = false }: PomodoroWidgetProps)
               {mm}:{ss}
             </div>
             <div style={{
-              fontSize: compact ? 9.5 : 10.5, color: 'var(--ink-3)', fontWeight: 800,
+              fontSize: compact ? 10 : 11, color: 'var(--ink-2)', fontWeight: 800,
               marginTop: 3, letterSpacing: '.05em', textTransform: 'uppercase',
             }}>
               {mc.label}
@@ -235,18 +211,18 @@ export default function PomodoroWidget({ compact = false }: PomodoroWidgetProps)
 
       {/* controls */}
       <div style={{ display: 'flex', gap: 7 }}>
-        <button onClick={() => { setRunning((r) => !r); setShowSettings(false); }}
+        <button onClick={handleToggleRunning}
           className="btn btn-primary btn-sm" style={{ flex: 1, gap: 5, fontSize: 12 }}>
           <Icon name={running ? 'pause' : 'play'} size={13} fill />
           {running ? 'Tạm dừng' : 'Bắt đầu'}
         </button>
-        <button onClick={reset} className="btn btn-soft btn-sm"
+        <button onClick={handleReset} className="btn btn-soft btn-sm"
           style={{ padding: '8px 11px' }} title="Đặt lại bộ đếm">
           <Icon name="refresh" size={14} />
         </button>
       </div>
 
-      <div style={{ marginTop: 9, fontSize: 10.5, color: 'var(--ink-3)', textAlign: 'center', lineHeight: 1.45 }}>
+      <div style={{ marginTop: 9, fontSize: 11, color: 'var(--ink-2)', fontWeight: 600, textAlign: 'center', lineHeight: 1.45 }}>
         {sessions >= 4
           ? 'Hoàn thành 4 phiên · Hãy nghỉ dài nhé!'
           : sessions > 0

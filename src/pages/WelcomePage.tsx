@@ -5,6 +5,11 @@ import Icon from '../components/common/Icon';
 import PomodoroWidget from '../components/shared/PomodoroWidget';
 import { useTweaks } from '../contexts/TweaksContext';
 import { saveSettings } from '../services/tauriCommands';
+import { useDispatch, useSelector } from 'react-redux';
+import { RootState } from '../store';
+import { setMusicEnabled, setMusicVolume } from '../store/pomodoroSlice';
+import { setDailyReminder } from '../store/appSlice';
+import { useNotesForDeck } from '../hooks/useAnki';
 
 const LS_GEMINI_KEY = 'gemini_api_key';
 
@@ -191,12 +196,13 @@ function GeminiKeySection() {
 
 function SettingsPopover({ onClose }: { onClose: () => void }) {
   const { openTweaks } = useTweaks();
-  const [sound, setSound] = useState(true);
-  const [notif, setNotif] = useState(true);
+  const dispatch = useDispatch();
+  const { musicEnabled, musicVolume } = useSelector((state: RootState) => state.pomodoro);
+  const dailyReminder = useSelector((state: RootState) => state.app.dailyReminder);
 
-  const Switch = ({ on, set }: { on: boolean; set: React.Dispatch<React.SetStateAction<boolean>> }) => (
-    <button onClick={() => set(v => !v)}
-      style={{ width: 42, height: 24, borderRadius: 999, background: on ? 'var(--accent-deep)' : 'rgba(40,55,30,0.18)', position: 'relative', transition: 'background 180ms' }}>
+  const Switch = ({ on, set }: { on: boolean; set: (val: boolean) => void }) => (
+    <button onClick={() => set(!on)}
+      style={{ width: 42, height: 24, borderRadius: 999, background: on ? 'var(--accent-deep)' : 'rgba(40,55,30,0.18)', position: 'relative', transition: 'background 180ms', border: 'none', cursor: 'pointer' }}>
       <span style={{ position: 'absolute', top: 2, left: on ? 20 : 2, width: 20, height: 20, borderRadius: '50%', background: '#fff', boxShadow: 'var(--sh-sm)', transition: 'left 180ms var(--ease)' }} />
     </button>
   );
@@ -216,8 +222,14 @@ function SettingsPopover({ onClose }: { onClose: () => void }) {
         <span style={{ fontSize: 15.5, fontWeight: 800, color: 'var(--ink)' }}>Cài đặt</span>
       </div>
       <div style={{ padding: 6 }}>
-        <Row ic="volume" label="Âm thanh nền"><Switch on={sound} set={setSound} /></Row>
-        <Row ic="bell" label="Nhắc học hằng ngày"><Switch on={notif} set={setNotif} /></Row>
+        <Row ic="volume" label="Âm thanh nền"><Switch on={musicEnabled} set={(v) => dispatch(setMusicEnabled(v))} /></Row>
+        {musicEnabled && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 16px 8px 42px' }}>
+            <input type="range" min="0" max="100" value={musicVolume} onChange={e => dispatch(setMusicVolume(Number(e.target.value)))} style={{ flex: 1, accentColor: 'var(--accent-deep)' }} />
+            <span style={{ fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-mono)', minWidth: 35, textAlign: 'right', color: 'var(--ink)' }}>{musicVolume}%</span>
+          </div>
+        )}
+        <Row ic="bell" label="Nhắc học hằng ngày"><Switch on={dailyReminder} set={(v) => dispatch(setDailyReminder(v))} /></Row>
         <Row ic="globe" label="Ngôn ngữ"><span className="chip" style={{ fontSize: 12 }}>Tiếng Việt</span></Row>
         <hr className="divider" style={{ margin: '4px 12px' }} />
         <GeminiKeySection />
@@ -238,7 +250,19 @@ function SettingsPopover({ onClose }: { onClose: () => void }) {
 function SearchPopover({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate();
   const [q, setQ] = useState('');
-  const recent = ['serene', 'diligent', 'Talking about hobbies', 'My hometown'];
+  
+  // Fetch notes based on query (or all notes if q is empty)
+  const { data: notesData } = useNotesForDeck(null, { search: q || undefined });
+  const allNotes = notesData || [];
+  
+  // Get top 4 unique suggestions based on 'front'
+  const suggestions = Array.from(new Set(allNotes.map(n => n.front))).slice(0, 4);
+
+  const handleSearch = (query: string) => {
+    if (!query.trim()) return;
+    navigate(`/vocab?q=${encodeURIComponent(query)}`);
+    onClose();
+  };
 
   return (
     <div>
@@ -249,22 +273,31 @@ function SearchPopover({ onClose }: { onClose: () => void }) {
             autoFocus
             value={q}
             onChange={e => setQ(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleSearch(q)}
             placeholder="Tìm từ vựng, bài học…"
             style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', fontSize: 14, fontFamily: 'var(--font)', color: 'var(--ink)' }}
           />
         </div>
       </div>
-      <div style={{ padding: 8 }}>
-        <div className="label-cap" style={{ padding: '6px 10px' }}>Gần đây</div>
-        {recent.filter(r => r.toLowerCase().includes(q.toLowerCase())).map((r, i) => (
-          <button key={i} onClick={() => { navigate('/vocab'); onClose(); }}
-            style={{ width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 11, padding: '10px 12px', borderRadius: 'var(--r-sm)', fontSize: 14, fontWeight: 600, color: 'var(--ink)', transition: 'background 140ms', background: 'transparent' }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(40,55,30,0.06)'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}>
-            <Icon name="clock" size={15} style={{ color: 'var(--ink-3)' }} />
-            {r}
-          </button>
-        ))}
+      <div style={{ padding: 8, minHeight: 220, display: 'flex', flexDirection: 'column' }}>
+        <div className="label-cap" style={{ padding: '6px 10px' }}>Gợi ý</div>
+        {suggestions.length === 0 ? (
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: 'var(--ink-3)', opacity: 0.8 }}>
+            Chưa có từ vựng nào.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {suggestions.map((r, i) => (
+              <button key={i} onClick={() => handleSearch(r)}
+                style={{ width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 11, padding: '10px 12px', borderRadius: 'var(--r-sm)', fontSize: 14, fontWeight: 600, color: 'var(--ink)', transition: 'background 140ms', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(40,55,30,0.06)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}>
+                <Icon name="sparkle" size={15} style={{ color: 'var(--ink-3)' }} />
+                {r}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

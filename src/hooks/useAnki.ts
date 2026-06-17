@@ -16,8 +16,7 @@ export function useDecks() {
 export function useNotesForDeck(deckId: number | null, opts?: { includeSubdecks?: boolean; tagFilter?: string; search?: string }) {
   return useQuery({
     queryKey: ['anki-notes', deckId, opts],
-    queryFn: () => getNotesForDeck({ deckId: deckId!, includeSubdecks: opts?.includeSubdecks ?? true, tagFilter: opts?.tagFilter, search: opts?.search }),
-    enabled: deckId !== null,
+    queryFn: () => getNotesForDeck({ deckId, includeSubdecks: opts?.includeSubdecks ?? true, tagFilter: opts?.tagFilter, search: opts?.search }),
   });
 }
 

@@ -7,7 +7,9 @@ import { check } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import bgGif from './public/img/1_1IDOLADBDduPo-kjXpeGAA.gif';
+import bgMusic from './public/mp3/lofi_hour-just-chill-114854.mp3';
 import { setOnlineStatus } from './store/appSlice';
+import { tick, timerComplete, setIsRinging } from './store/pomodoroSlice';
 import { initNotificationWatcher } from './services/notification-service';
 import { enable, isEnabled } from '@tauri-apps/plugin-autostart';
 
@@ -81,7 +83,107 @@ function AppShell() {
   const { tweaks } = useTweaks();
   const navigate = useNavigate();
   const isActivated = useSelector((state: RootState) => state.app.isActivated);
+  
+  // Pomodoro Global State & Timer
+  const { running: pomoRunning, left: pomoLeft, mode: pomoMode, volume: pomoVolume, musicEnabled: pomoMusicEnabled, musicVolume: pomoMusicVolume } = useSelector((state: RootState) => state.pomodoro);
   const [toast, setToast] = useState<{title: string, body: string, visible: boolean} | null>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
+
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = pomoMusicVolume / 100;
+    }
+  }, [pomoMusicVolume]);
+
+  const pomoMusicEnabledRef = useRef(pomoMusicEnabled);
+  pomoMusicEnabledRef.current = pomoMusicEnabled;
+
+  useEffect(() => {
+    const playAudio = async () => {
+      if (!audioRef.current) return;
+      try {
+        await audioRef.current.play();
+      } catch (err: any) {
+        if (err.name === 'NotAllowedError') {
+          const onInteract = () => {
+            if (pomoMusicEnabledRef.current) audioRef.current?.play().catch(()=>{});
+            window.removeEventListener('click', onInteract);
+            window.removeEventListener('keydown', onInteract);
+          };
+          window.addEventListener('click', onInteract);
+          window.addEventListener('keydown', onInteract);
+        }
+      }
+    };
+
+    if (pomoMusicEnabled) {
+      playAudio();
+    } else {
+      audioRef.current?.pause();
+    }
+  }, [pomoMusicEnabled]);
+
+  useEffect(() => {
+    if (!pomoRunning) return;
+    const id = setInterval(() => {
+      dispatch(tick());
+    }, 1000);
+    return () => clearInterval(id);
+  }, [pomoRunning, dispatch]);
+
+  const pomoVolumeRef = useRef(pomoVolume);
+  pomoVolumeRef.current = pomoVolume;
+  const pomoModeRef = useRef(pomoMode);
+  pomoModeRef.current = pomoMode;
+
+  useEffect(() => {
+    if (pomoRunning && pomoLeft === 0) {
+      dispatch(timerComplete());
+      
+      // Trigger ring animation
+      dispatch(setIsRinging(true));
+      setTimeout(() => dispatch(setIsRinging(false)), 3000);
+
+      // Play Beep Alarm
+      if (pomoVolumeRef.current > 0) {
+        try {
+          const vol = pomoVolumeRef.current / 100;
+          const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+          
+          const playBeep = (time: number, duration: number) => {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(880, time);
+            gain.gain.setValueAtTime(0, time);
+            gain.gain.linearRampToValueAtTime(vol, time + 0.01);
+            gain.gain.setValueAtTime(vol, time + duration - 0.01);
+            gain.gain.linearRampToValueAtTime(0, time + duration);
+            osc.start(time);
+            osc.stop(time + duration);
+          };
+
+          const now = audioCtx.currentTime;
+          for (let i = 0; i < 3; i++) {
+            const baseTime = now + i * 1.2;
+            playBeep(baseTime + 0.0, 0.12);
+            playBeep(baseTime + 0.2, 0.12);
+            playBeep(baseTime + 0.4, 0.12);
+            playBeep(baseTime + 0.6, 0.12);
+          }
+        } catch(e) {}
+      }
+
+      // App Toast
+      const modeNames: Record<string, string> = { focus: 'Tập trung', short: 'Nghỉ ngắn', long: 'Nghỉ dài' };
+      const modeName = modeNames[pomoModeRef.current] || 'Pomodoro';
+      window.dispatchEvent(new CustomEvent('app-toast', { 
+        detail: { title: 'Hết giờ!', body: `Đã hoàn thành phiên ${modeName}.` } 
+      }));
+    }
+  }, [pomoLeft, pomoRunning, dispatch]);
 
   useEffect(() => {
     const up   = () => dispatch(setOnlineStatus(true));
@@ -244,6 +346,14 @@ function AppShell() {
           </div>
         </div>
       )}
+      
+      {/* Background Focus Music */}
+      <audio 
+        ref={audioRef} 
+        src={bgMusic} 
+        loop 
+        preload="none"
+      />
     </div>
   );
 }

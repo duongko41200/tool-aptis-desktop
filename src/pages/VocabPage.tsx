@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import { setPendingVocabWord } from '../store/appSlice';
 import type { RootState } from '../store';
 import {
@@ -344,7 +345,12 @@ interface NotesPanelProps {
   isReviewing: boolean;
 }
 function NotesPanel({ selectedDeckId, decks, dueCards, sessionStats, sessionRatings, onAddNote, isReviewing }: NotesPanelProps) {
-  const [search, setSearch] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const search = searchParams.get('q') || '';
+  const setSearch = (val: string) => {
+    if (val) setSearchParams({ q: val });
+    else setSearchParams({});
+  };
   const { data: notesData } = useNotesForDeck(selectedDeckId, { search: search || undefined });
   const notes = notesData ?? [];
   const deck = decks.find(d => d.id === selectedDeckId);
@@ -440,7 +446,7 @@ function NotesPanel({ selectedDeckId, decks, dueCards, sessionStats, sessionRati
 
       {/* Notes list */}
       <div className="scroll" style={{ flex: 1, overflowY: 'auto', padding: '6px 0' }}>
-        {!selectedDeckId ? (
+        {!selectedDeckId && !search ? (
           <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--ink-3)', fontSize: 13 }}>
             Chọn một bộ thẻ để xem từ vựng.
           </div>
